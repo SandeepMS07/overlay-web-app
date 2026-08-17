@@ -1,0 +1,64 @@
+appId: com.pranay.overlayplayer
+productName: Overlay Player
+copyright: Copyright © 2026
+
+directories:
+  output: release
+  buildResources: build
+
+# Only the Electron shell goes in the asar. The Next.js server travels as an
+# extra resource with its own pruned node_modules.
+#
+# Do NOT add '!node_modules/**/*' here: electron-builder matches that pattern
+# against every path it copies, including inside extraResources, which silently
+# strips the bundled server's dependencies and produces an app that cannot boot.
+# Nothing needs excluding anyway — next/react are devDependencies, so
+# electron-builder bundles no node_modules at all.
+files:
+  - electron/**/*
+  - package.json
+
+# Copies .electron-resources/payload/server -> Resources/server. The extra
+# nesting level is required: electron-builder's copy filter always rejects a
+# node_modules directory at the root of an extraResources source, so the
+# server's dependencies would vanish if `from` pointed straight at it.
+extraResources:
+  - from: .electron-resources/payload
+    to: .
+
+mac:
+  category: public.app-category.utilities
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+  icon: build/icon.png
+  # Unsigned local builds. To ship signed, remove this line and set
+  # CSC_LINK / CSC_KEY_PASSWORD (or log in to Xcode with a Developer ID).
+  identity: null
+  extendInfo:
+    # Required before macOS will let the app capture or overlay other windows
+    # in some configurations, and keeps the overlay out of Mission Control.
+    NSHighResolutionCapable: true
+
+dmg:
+  title: Overlay Player
+
+win:
+  target:
+    - target: nsis
+      arch: [x64, arm64]
+  icon: build/icon.png
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: Overlay Player
+
+linux:
+  target: [AppImage]
+  category: Utility
+  icon: build/icon.png
