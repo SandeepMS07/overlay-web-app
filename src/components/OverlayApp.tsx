@@ -4,7 +4,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Chat from '@/components/Chat';
 import { DEFAULT_SETTINGS, type Settings } from '@/lib/settings';
 import { PROVIDERS } from '@/lib/providers';
-import { CloseIcon, GhostIcon, MinusIcon, PinIcon } from '@/components/Icons';
+import {
+  CaptureIcon,
+  CloseIcon,
+  GhostIcon,
+  MinusIcon,
+  NoCaptureIcon,
+  PinIcon,
+} from '@/components/Icons';
 
 const BAR_HEIGHT = 40;
 
@@ -56,6 +63,7 @@ export default function OverlayApp() {
         void window.overlay?.setOpacity(stored.opacity);
         void window.overlay?.setAlwaysOnTop(stored.alwaysOnTop);
         void window.overlay?.setClickThrough(stored.clickThrough);
+        void window.overlay?.setHiddenFromCapture(stored.hiddenFromCapture);
       } catch {
         if (!cancelled) notify('Could not reach the local backend.', true);
       } finally {
@@ -84,6 +92,17 @@ export default function OverlayApp() {
     void window.overlay?.setClickThrough(next);
   }, [settings.clickThrough, update]);
 
+  const toggleHiddenFromCapture = useCallback(() => {
+    const next = !settings.hiddenFromCapture;
+    update({ hiddenFromCapture: next });
+    void window.overlay?.setHiddenFromCapture(next);
+    notify(
+      next
+        ? 'Hidden from screen sharing and recordings.'
+        : 'Visible in screen sharing and recordings.'
+    );
+  }, [notify, settings.hiddenFromCapture, update]);
+
   const toggleAlwaysOnTop = useCallback(() => {
     const next = !settings.alwaysOnTop;
     update({ alwaysOnTop: next });
@@ -108,6 +127,18 @@ export default function OverlayApp() {
       setSettings((prev) => (prev.clickThrough === value ? prev : { ...prev, clickThrough: value }));
     });
   }, []);
+
+  // The tray item and ⌘⇧P flip this in the main process, so mirror it back into
+  // the UI and persist it — otherwise the toolbar would show a stale state.
+  useEffect(() => {
+    return window.overlay?.onHiddenFromCaptureChanged((value) => {
+      setSettings((prev) => {
+        if (prev.hiddenFromCapture === value) return prev;
+        persist({ hiddenFromCapture: value });
+        return { ...prev, hiddenFromCapture: value };
+      });
+    });
+  }, [persist]);
 
   useEffect(() => {
     const onMove = (event: MouseEvent) => {
@@ -176,6 +207,17 @@ export default function OverlayApp() {
           title={`Opacity ${Math.round(settings.opacity * 100)}%`}
         />
 
+        <button
+          className={`btn${settings.hiddenFromCapture ? ' is-active' : ''}`}
+          onClick={toggleHiddenFromCapture}
+          title={
+            settings.hiddenFromCapture
+              ? 'Hidden from screen sharing and recordings — click to make it visible (⌘⇧P)'
+              : 'Visible in screen sharing and recordings — click to hide it (⌘⇧P)'
+          }
+        >
+          {settings.hiddenFromCapture ? <NoCaptureIcon /> : <CaptureIcon />}
+        </button>
         <button
           className={`btn${settings.clickThrough ? ' is-active' : ''}`}
           onClick={toggleClickThrough}

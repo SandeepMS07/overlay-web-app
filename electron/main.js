@@ -44,6 +44,8 @@ let serverUrl = '';
 let clickThrough = false;
 // Mirrors the user's pin preference so re-pinning does not override it.
 let alwaysOnTop = true;
+// Excluded from screen capture by default — see setHiddenFromCapture().
+let hiddenFromCapture = true;
 
 const stateFile = () => path.join(app.getPath('userData'), 'window-state.json');
 
@@ -189,6 +191,35 @@ function pinToAllSpaces() {
 }
 
 /**
+ * Asks the OS window server to leave this window out of screen captures, so it
+ * does not appear in a shared screen, a recording, or a screenshot.
+ *
+ *   macOS   — NSWindowSharingNone. Honoured by ScreenCaptureKit and the older
+ *             CGWindowList path, which is what Zoom, Meet, Teams, Slack,
+ *             QuickTime and ⌘⇧5 all capture through.
+ *   Windows — WDA_EXCLUDEFROMCAPTURE on Windows 10 2004+, where the window is
+ *             simply absent from the capture. On older builds Windows can only
+ *             black the region out instead of hiding it.
+ *
+ * This is a window-server flag, not magic: anything that captures outside that
+ * path still sees the window — a phone camera pointed at the screen, a hardware
+ * HDMI capture box, or a remote-control tool that mirrors the framebuffer at
+ * driver level.
+ */
+function applyContentProtection() {
+  if (!win || win.isDestroyed()) return;
+  win.setContentProtection(hiddenFromCapture);
+}
+
+function setHiddenFromCapture(enabled) {
+  hiddenFromCapture = Boolean(enabled);
+  applyContentProtection();
+  win?.webContents.send('overlay:hidden-from-capture-changed', hiddenFromCapture);
+  rebuildTrayMenu();
+  return hiddenFromCapture;
+}
+
+/**
  * Moves the overlay to whichever display the cursor is on. A window only ever
  * lives on one physical monitor, so "show it on my other screen" has to be an
  * explicit move rather than something the window does by itself.
@@ -247,6 +278,8 @@ function createWindow() {
   });
 
   pinToAllSpaces();
+  // Set before the first show, so the window is never captured even briefly.
+  applyContentProtection();
 
   win.loadURL(serverUrl);
 
@@ -255,7 +288,12 @@ function createWindow() {
   // macOS drops the all-Spaces flag when a window is hidden and shown again,
   // and both a display change and another app entering full screen can knock
   // the window out of its always-on-top level. Re-assert it on each of those.
-  win.on('show', pinToAllSpaces);
+  win.on('show', () => {
+    pinToAllSpaces();
+    // Re-asserted for the same reason: the flag lives on the native window and
+    // a hide/show cycle is exactly when macOS has been seen to drop it.
+    applyContentProtection();
+  });
   win.on('blur', pinToAllSpaces);
   screen.on('display-added', pinToAllSpaces);
   screen.on('display-removed', pinToAllSpaces);
@@ -338,6 +376,13 @@ function rebuildTrayMenu() {
         accelerator: 'CmdOrCtrl+Shift+M',
         click: moveToActiveDisplay,
       },
+      {
+        label: 'Hide from screen sharing',
+        type: 'checkbox',
+        checked: hiddenFromCapture,
+        accelerator: 'CmdOrCtrl+Shift+P',
+        click: () => setHiddenFromCapture(!hiddenFromCapture),
+      },
       { type: 'separator' },
       {
         label: 'Reset Position',
@@ -379,6 +424,7 @@ function registerShortcuts() {
   bind('CommandOrControl+Shift+Y', toggleVisibility);
   bind('CommandOrControl+Shift+C', () => setClickThrough(!clickThrough));
   bind('CommandOrControl+Shift+M', moveToActiveDisplay);
+  bind('CommandOrControl+Shift+P', () => setHiddenFromCapture(!hiddenFromCapture));
 
   // Ask-a-question from anywhere: reveal the overlay, take focus, and let the
   // renderer put the caret in the composer.
@@ -403,9 +449,14 @@ function registerIpc() {
   ipcMain.handle('overlay:get-state', () => ({
     clickThrough,
     alwaysOnTop: win?.isAlwaysOnTop() ?? true,
+    hiddenFromCapture,
     bounds: win?.getBounds() ?? null,
     platform: process.platform,
   }));
+
+  ipcMain.handle('overlay:set-hidden-from-capture', (_e, enabled) =>
+    setHiddenFromCapture(enabled)
+  );
 
   ipcMain.handle('overlay:set-click-through', (_e, enabled) => {
     setClickThrough(enabled);

@@ -1,6 +1,7 @@
 export type OverlayState = {
   clickThrough: boolean;
   alwaysOnTop: boolean;
+  hiddenFromCapture: boolean;
   bounds: { x: number; y: number; width: number; height: number } | null;
   platform: NodeJS.Platform;
 };
@@ -12,6 +13,7 @@ export type OverlayBridge = {
   setClickThrough(enabled: boolean): Promise<boolean>;
   setInteractive(interactive: boolean): void;
   setAlwaysOnTop(enabled: boolean): Promise<boolean>;
+  setHiddenFromCapture(enabled: boolean): Promise<boolean>;
   setOpacity(value: number): Promise<number>;
   setBounds(bounds: Partial<{ x: number; y: number; width: number; height: number }>): Promise<unknown>;
   setSize(size: { width: number; height: number }): Promise<unknown>;
@@ -22,6 +24,7 @@ export type OverlayBridge = {
   openExternal(url: string): void;
   onShortcut(callback: (action: ShortcutAction) => void): () => void;
   onClickThroughChanged(callback: (value: boolean) => void): () => void;
+  onHiddenFromCaptureChanged(callback: (value: boolean) => void): () => void;
 };
 
 declare global {

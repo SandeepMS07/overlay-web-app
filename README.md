@@ -34,6 +34,10 @@ the server is up. Paste an API key in the 🔑 panel and ask a question.
 - **Present on every Space**, and `⌘⇧M` jumps it to whichever monitor your
   cursor is on. A window only ever lives on one physical display at a time, so
   multi-monitor is an explicit move rather than automatic.
+- **Excluded from screen capture** (on by default, `⌘⇧P` to toggle) — the
+  window is left out of screen shares, recordings and screenshots. See
+  [Screen-capture exclusion](#screen-capture-exclusion) for what that does and
+  does not cover.
 - **See-through by default** — opacity starts at 60% so whatever is behind the
   overlay stays readable. The slider goes from 20% to fully opaque.
 - **Click-through mode** — the window goes ghost and your clicks land on the app
@@ -59,9 +63,36 @@ endpoint — a local model server, Azure OpenAI, OpenRouter.
 | `⌘⇧Y` / `Ctrl+Shift+Y` | Show / hide the overlay |
 | `⌘⇧C` / `Ctrl+Shift+C` | Toggle click-through |
 | `⌘⇧M` / `Ctrl+Shift+M` | Move the overlay to the screen your cursor is on |
+| `⌘⇧P` / `Ctrl+Shift+P` | Toggle exclusion from screen capture |
 | `⌘⇧↑` / `⌘⇧↓` | Opacity up / down |
 | `⌘⇧←` / `⌘⇧→` | Nudge the window left / right |
 | `Enter` | Send · `Shift+Enter` for a newline |
+
+## Screen-capture exclusion
+
+The overlay asks the OS window server to leave it out of captures
+(`setContentProtection`), which is the same mechanism password managers use to
+keep a vault out of a recording. It is **on by default**; the toolbar button and
+`⌘⇧P` toggle it, and the choice is remembered.
+
+- **macOS** — `NSWindowSharingNone`. Honoured by ScreenCaptureKit and the older
+  CGWindowList path, which is what Zoom, Meet, Teams, Slack, QuickTime and `⌘⇧5`
+  all capture through.
+- **Windows** — `WDA_EXCLUDEFROMCAPTURE` on Windows 10 2004 and later, where the
+  window is simply absent. Older builds can only black the region out, which is
+  more conspicuous than leaving it visible.
+
+This is a window-server flag, not magic. Anything capturing outside that path
+still sees the overlay: a phone camera pointed at your screen, an HDMI capture
+box, a remote-control tool that mirrors the framebuffer at driver level, or a
+proctoring agent that reads the window list rather than the pixels. Verify it on
+your own machine before relying on it — press `⌘⇧5`, take a screenshot, and see
+whether the overlay is in the image.
+
+Worth stating plainly: hiding the window from a capture does not hide the app
+from the machine. Any process that enumerates running applications — which is
+what interview-proctoring and exam-lockdown software is built to do — still sees
+it by name.
 
 ## About your API keys
 
@@ -143,8 +174,6 @@ refuses to copy a `node_modules` directory sitting at the root of an
 
 ## Notes and limits
 
-- The overlay is a normal, visible window. It appears in screen recordings and
-  screen shares like any other window.
 - Global shortcuts are system-wide; if another app already owns one, Electron
   logs a warning at startup and that single shortcut is skipped.
 - Conversations are held in memory only — closing the overlay clears the thread.

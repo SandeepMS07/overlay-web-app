@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld('overlay', {
   setClickThrough: (enabled) => ipcRenderer.invoke('overlay:set-click-through', enabled),
   setInteractive: (interactive) => ipcRenderer.send('overlay:set-interactive', interactive),
   setAlwaysOnTop: (enabled) => ipcRenderer.invoke('overlay:set-always-on-top', enabled),
+  setHiddenFromCapture: (enabled) =>
+    ipcRenderer.invoke('overlay:set-hidden-from-capture', enabled),
   setOpacity: (value) => ipcRenderer.invoke('overlay:set-opacity', value),
   setBounds: (bounds) => ipcRenderer.invoke('overlay:set-bounds', bounds),
   setSize: (size) => ipcRenderer.invoke('overlay:set-size', size),
@@ -34,5 +36,11 @@ contextBridge.exposeInMainWorld('overlay', {
     const handler = (_event, value) => callback(value);
     ipcRenderer.on('overlay:click-through-changed', handler);
     return () => ipcRenderer.removeListener('overlay:click-through-changed', handler);
+  },
+
+  onHiddenFromCaptureChanged: (callback) => {
+    const handler = (_event, value) => callback(value);
+    ipcRenderer.on('overlay:hidden-from-capture-changed', handler);
+    return () => ipcRenderer.removeListener('overlay:hidden-from-capture-changed', handler);
   },
 });
