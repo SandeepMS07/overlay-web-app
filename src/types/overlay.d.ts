@@ -15,6 +15,8 @@ export type OverlayBridge = {
   setOpacity(value: number): Promise<number>;
   setBounds(bounds: Partial<{ x: number; y: number; width: number; height: number }>): Promise<unknown>;
   setSize(size: { width: number; height: number }): Promise<unknown>;
+  focusWindow(): void;
+  moveToActiveDisplay(): void;
   hide(): void;
   quit(): void;
   openExternal(url: string): void;

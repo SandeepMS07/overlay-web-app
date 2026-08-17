@@ -20,9 +20,14 @@ the server is up. Paste a YouTube link in the bar and press Enter.
 
 ## What it does
 
-- **Always on top**, above full-screen apps and on every Space. The pin is
-  re-applied whenever the overlay is shown or a display is added or removed,
-  because macOS quietly drops it in both cases.
+- **Always on top**, above every app including full-screen VS Code, Chrome and
+  Safari. On macOS the window is backed by an `NSPanel` (`type: 'panel'`), which
+  is what allows it to float over another app's full-screen Space — a plain
+  always-on-top window cannot. The pin is re-applied on show, on blur, and on
+  any display change, because macOS quietly drops it in all three cases.
+- **Present on every Space**, and `⌘⇧M` jumps it to whichever monitor your
+  cursor is on. A window only ever lives on one physical display at a time, so
+  multi-monitor is an explicit move rather than automatic.
 - **See-through by default** — opacity starts at 60% so whatever is behind the
   overlay stays readable. The slider goes from 20% to fully opaque.
 - **Click-through mode** — the window goes ghost and your clicks land on the app
@@ -40,6 +45,7 @@ the server is up. Paste a YouTube link in the bar and press Enter.
 | --- | --- |
 | `⌘⇧Y` / `Ctrl+Shift+Y` | Show / hide the overlay |
 | `⌘⇧C` / `Ctrl+Shift+C` | Toggle click-through |
+| `⌘⇧M` / `Ctrl+Shift+M` | Move the overlay to the screen your cursor is on |
 | `⌘⇧Space` | Play / pause |
 | `⌘⇧↑` / `⌘⇧↓` | Opacity up / down |
 | `⌘⇧←` / `⌘⇧→` | Nudge the window left / right |

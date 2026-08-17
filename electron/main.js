@@ -179,7 +179,33 @@ function saveBounds() {
 function pinToAllSpaces() {
   if (!win || win.isDestroyed()) return;
   win.setAlwaysOnTop(alwaysOnTop, 'screen-saver');
-  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  win.setVisibleOnAllWorkspaces(true, {
+    visibleOnFullScreen: true,
+    // Without this Electron flips the process activation type on every call,
+    // which makes the overlay flicker and can steal focus from the app behind.
+    skipTransformProcessType: true,
+  });
+}
+
+/**
+ * Moves the overlay to whichever display the cursor is on. A window only ever
+ * lives on one physical monitor, so "show it on my other screen" has to be an
+ * explicit move rather than something the window does by itself.
+ */
+function moveToActiveDisplay() {
+  if (!win || win.isDestroyed()) return;
+  const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+  const { width, height } = win.getBounds();
+  const w = Math.min(width, area.width);
+  const h = Math.min(height, area.height);
+
+  win.setBounds({
+    x: Math.round(area.x + area.width - w - 32),
+    y: Math.round(area.y + 32),
+    width: w,
+    height: h,
+  });
+  win.show();
 }
 
 function createWindow() {
@@ -202,6 +228,10 @@ function createWindow() {
     fullscreenable: false,
     skipTaskbar: true,
     show: false,
+    // On macOS a plain always-on-top window cannot float above another app's
+    // full-screen Space. 'panel' backs it with an NSPanel, which can — this is
+    // what lets the overlay sit over full-screen VS Code, Chrome, Safari, etc.
+    ...(process.platform === 'darwin' ? { type: 'panel' } : {}),
     // Frameless windows have no OS title bar, so the renderer draws its own
     // drag region (see -webkit-app-region in the UI).
     webPreferences: {
@@ -223,8 +253,10 @@ function createWindow() {
   win.once('ready-to-show', () => win?.show());
 
   // macOS drops the all-Spaces flag when a window is hidden and shown again,
-  // and a display change can knock the window out of its always-on-top level.
+  // and both a display change and another app entering full screen can knock
+  // the window out of its always-on-top level. Re-assert it on each of those.
   win.on('show', pinToAllSpaces);
+  win.on('blur', pinToAllSpaces);
   screen.on('display-added', pinToAllSpaces);
   screen.on('display-removed', pinToAllSpaces);
   screen.on('display-metrics-changed', pinToAllSpaces);
@@ -301,6 +333,11 @@ function rebuildTrayMenu() {
         accelerator: 'CmdOrCtrl+Shift+C',
         click: () => setClickThrough(!clickThrough),
       },
+      {
+        label: 'Move to Active Screen',
+        accelerator: 'CmdOrCtrl+Shift+M',
+        click: moveToActiveDisplay,
+      },
       { type: 'separator' },
       {
         label: 'Reset Position',
@@ -341,6 +378,7 @@ function registerShortcuts() {
 
   bind('CommandOrControl+Shift+Y', toggleVisibility);
   bind('CommandOrControl+Shift+C', () => setClickThrough(!clickThrough));
+  bind('CommandOrControl+Shift+M', moveToActiveDisplay);
   bind('CommandOrControl+Shift+Space', () => win?.webContents.send('overlay:shortcut', 'playpause'));
   bind('CommandOrControl+Shift+Up', () => win?.webContents.send('overlay:shortcut', 'opacity-up'));
   bind('CommandOrControl+Shift+Down', () => win?.webContents.send('overlay:shortcut', 'opacity-down'));
@@ -403,6 +441,14 @@ function registerIpc() {
     win.setSize(Math.round(Math.max(280, width)), Math.round(Math.max(180, height)));
     return win.getBounds();
   });
+
+  // An NSPanel does not take key focus when clicked, so the renderer asks for
+  // it explicitly before typing into the URL field.
+  ipcMain.on('overlay:focus', () => {
+    if (win && !win.isDestroyed() && !clickThrough) win.focus();
+  });
+
+  ipcMain.on('overlay:move-to-active-display', moveToActiveDisplay);
 
   ipcMain.on('overlay:hide', () => win?.hide());
   ipcMain.on('overlay:quit', () => app.quit());

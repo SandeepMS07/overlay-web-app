@@ -16,6 +16,9 @@ contextBridge.exposeInMainWorld('overlay', {
   setBounds: (bounds) => ipcRenderer.invoke('overlay:set-bounds', bounds),
   setSize: (size) => ipcRenderer.invoke('overlay:set-size', size),
 
+  focusWindow: () => ipcRenderer.send('overlay:focus'),
+  moveToActiveDisplay: () => ipcRenderer.send('overlay:move-to-active-display'),
+
   hide: () => ipcRenderer.send('overlay:hide'),
   quit: () => ipcRenderer.send('overlay:quit'),
   openExternal: (url) => ipcRenderer.send('overlay:open-external', url),

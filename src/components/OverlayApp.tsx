@@ -336,7 +336,13 @@ export default function OverlayApp() {
 
       {settings.clickThrough && <div className="hover-sensor" />}
 
-      <header ref={barRef} className={`bar${barVisible ? '' : ' is-hidden'}`}>
+      <header
+        ref={barRef}
+        className={`bar${barVisible ? '' : ' is-hidden'}`}
+        // The macOS panel window does not become key on click, so ask for focus
+        // before any interaction that needs the keyboard.
+        onPointerDown={() => window.overlay?.focusWindow()}
+      >
         <span className="grip">⋮⋮</span>
 
         <button
@@ -356,6 +362,7 @@ export default function OverlayApp() {
           onFocus={() => {
             inputFocused.current = true;
             setBarVisible(true);
+            window.overlay?.focusWindow();
           }}
           onBlur={() => {
             inputFocused.current = false;
