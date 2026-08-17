@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import type { ProviderId } from '@/lib/providers';
 
 /**
  * Single-user local persistence. Electron passes its userData directory as
@@ -25,6 +26,11 @@ export type Settings = {
   autoplay: boolean;
   compact: boolean;
   lastVideoId: string | null;
+  /** Which panel the overlay shows. Chat is the default. */
+  mode: 'chat' | 'video';
+  provider: ProviderId;
+  /** Per-provider model override; blank falls back to the provider default. */
+  models: Partial<Record<ProviderId, string>>;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -37,6 +43,9 @@ export const DEFAULT_SETTINGS: Settings = {
   autoplay: true,
   compact: false,
   lastVideoId: null,
+  mode: 'chat',
+  provider: 'anthropic',
+  models: {},
 };
 
 async function readJson<T>(file: string, fallback: T): Promise<T> {

@@ -1,12 +1,38 @@
 # Overlay Player
 
-A floating, always-on-top YouTube player that sits above whatever else you are
-doing. One codebase: a Next.js app (UI **and** backend API) rendered inside an
-Electron window. Built for macOS first, packages for Windows from the same
-source.
+A floating, always-on-top overlay that sits above whatever else you are doing.
+Ask an AI a question and read the answer without leaving the app you're in — or
+switch to the video panel and float a YouTube video instead. One codebase: a
+Next.js app (UI **and** backend API) rendered inside an Electron window. Built
+for macOS first, packages for Windows from the same source.
 
-Single user by design — no accounts, no auth, no server. Your library and
-settings live in a JSON file inside the app's own data directory.
+Single user by design — no accounts, no auth, no server. Your keys, library, and
+settings live in files inside the app's own data directory.
+
+## The chat panel
+
+Bring your own key for **Claude**, **ChatGPT**, or **Gemini** — whichever you
+have. Pick the provider in the key panel (the 🔑 button), paste a key, and ask.
+Answers stream in token by token. `⌘⇧A` from any app reveals the overlay and
+puts the caret straight in the question box.
+
+The model name is a free-text field per provider, so you can point it at
+anything your account can use rather than waiting for this app to add it.
+`OPENAI_BASE_URL` redirects the ChatGPT provider at any OpenAI-compatible
+endpoint (a local model server, Azure OpenAI, OpenRouter).
+
+### About your API keys
+
+Keys are stored in `keys.json` in the app's data directory, written with
+owner-only permissions (`0600`), separate from `settings.json`. They are read
+server-side to call the provider and are **never** sent to the renderer — the UI
+only ever learns *whether* a key is set, not what it is.
+
+This is plaintext on disk: the same trust model as `~/.netrc` or any CLI config
+file. Anything running as your user account can read it. Don't put a key here
+you wouldn't put in a dotfile. Alternatively, set `ANTHROPIC_API_KEY`,
+`OPENAI_API_KEY`, or `GEMINI_API_KEY` in the environment and the app will use
+those instead, writing nothing to disk.
 
 ## Quick start
 
@@ -43,6 +69,7 @@ the server is up. Paste a YouTube link in the bar and press Enter.
 
 | Shortcut | Action |
 | --- | --- |
+| `⌘⇧A` / `Ctrl+Shift+A` | Show the overlay and focus the question box |
 | `⌘⇧Y` / `Ctrl+Shift+Y` | Show / hide the overlay |
 | `⌘⇧C` / `Ctrl+Shift+C` | Toggle click-through |
 | `⌘⇧M` / `Ctrl+Shift+M` | Move the overlay to the screen your cursor is on |

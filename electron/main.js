@@ -47,7 +47,9 @@ let alwaysOnTop = true;
 
 const stateFile = () => path.join(app.getPath('userData'), 'window-state.json');
 
-const DEFAULT_BOUNDS = { width: 480, height: 300 };
+// Sized for the chat panel, which is the default view; the video player is
+// comfortable at this width too.
+const DEFAULT_BOUNDS = { width: 460, height: 560 };
 
 // --------------------------------------------------------------------------
 // Next.js server
@@ -379,6 +381,16 @@ function registerShortcuts() {
   bind('CommandOrControl+Shift+Y', toggleVisibility);
   bind('CommandOrControl+Shift+C', () => setClickThrough(!clickThrough));
   bind('CommandOrControl+Shift+M', moveToActiveDisplay);
+
+  // Ask-a-question from anywhere: reveal the overlay, take focus, and let the
+  // renderer put the caret in the composer.
+  bind('CommandOrControl+Shift+A', () => {
+    if (!win) return;
+    win.show();
+    win.focus();
+    win.webContents.send('overlay:shortcut', 'focus-chat');
+  });
+
   bind('CommandOrControl+Shift+Space', () => win?.webContents.send('overlay:shortcut', 'playpause'));
   bind('CommandOrControl+Shift+Up', () => win?.webContents.send('overlay:shortcut', 'opacity-up'));
   bind('CommandOrControl+Shift+Down', () => win?.webContents.send('overlay:shortcut', 'opacity-down'));

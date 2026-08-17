@@ -20,15 +20,16 @@
   },
   "//": "next/react live in devDependencies on purpose: the packaged app runs the standalone server, which ships its own pruned node_modules as an extra resource. Listing them as runtime dependencies would make electron-builder bundle a second ~45MB copy into the asar.",
   "devDependencies": {
-    "next": "^16.3.1",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
+    "@anthropic-ai/sdk": "^0.117.1",
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "concurrently": "^10.0.5",
     "electron": "^43.4.0",
     "electron-builder": "^26.15.3",
+    "next": "^16.3.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "typescript": "^5.9.3",
     "wait-on": "^9.1.0"
   }

@@ -5,7 +5,7 @@ export type OverlayState = {
   platform: NodeJS.Platform;
 };
 
-export type ShortcutAction = 'playpause' | 'opacity-up' | 'opacity-down';
+export type ShortcutAction = 'playpause' | 'opacity-up' | 'opacity-down' | 'focus-chat';
 
 export type OverlayBridge = {
   getState(): Promise<OverlayState>;

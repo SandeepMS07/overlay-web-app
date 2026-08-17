@@ -1,19 +1,17 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useYouTubePlayer } from '@/lib/useYouTubePlayer';
-import type { Settings, Track } from '@/lib/store';
+import Chat from '@/components/Chat';
+import VideoPanel from '@/components/VideoPanel';
+import type { Settings } from '@/lib/store';
+import { PROVIDERS } from '@/lib/providers';
 import {
+  ChatIcon,
   CloseIcon,
-  ExternalIcon,
   GhostIcon,
-  ListIcon,
   MinusIcon,
-  PauseIcon,
   PinIcon,
-  PlayIcon,
-  PlusIcon,
-  TrashIcon,
+  VideoIcon,
 } from '@/components/Icons';
 
 const BAR_HEIGHT = 40;
@@ -26,35 +24,27 @@ const DEFAULTS: Settings = {
   autoplay: true,
   compact: false,
   lastVideoId: null,
+  mode: 'chat',
+  provider: 'anthropic',
+  models: {},
 };
-
-type Current = { videoId: string; title: string; author?: string };
 
 export default function OverlayApp() {
   const [settings, setSettings] = useState<Settings>(DEFAULTS);
-  const [library, setLibrary] = useState<Track[]>([]);
-  const [current, setCurrent] = useState<Current | null>(null);
-  const [input, setInput] = useState('');
-  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [ready, setReady] = useState(false);
   const [barVisible, setBarVisible] = useState(true);
-  const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null);
+  const [focusToken, setFocusToken] = useState(0);
+  // The video panel stays mounted once used so audio keeps playing behind chat.
+  const [videoMounted, setVideoMounted] = useState(false);
 
-  const barRef = useRef<HTMLElement | null>(null);
-  const inputFocused = useRef(false);
   const interactiveRef = useRef(true);
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const notify = useCallback((text: string, error = false) => {
     setToast({ text, error });
-    setTimeout(() => setToast((t) => (t?.text === text ? null : t)), 3200);
+    setTimeout(() => setToast((t) => (t?.text === text ? null : t)), 4000);
   }, []);
-
-  const player = useYouTubePlayer({
-    volume: settings.volume,
-    autoplay: settings.autoplay,
-    onError: (message) => notify(message, true),
-  });
 
   // ---------------------------------------------------------------- settings
 
@@ -81,121 +71,30 @@ export default function OverlayApp() {
 
   useEffect(() => {
     let cancelled = false;
-
     (async () => {
       try {
-        const [s, lib] = await Promise.all([
-          fetch('/api/settings').then((r) => r.json() as Promise<Settings>),
-          fetch('/api/library').then((r) => r.json() as Promise<Track[]>),
-        ]);
+        const stored = (await fetch('/api/settings').then((r) => r.json())) as Settings;
         if (cancelled) return;
-
-        setSettings(s);
-        setLibrary(lib);
-
-        // Push the restored window preferences back into the main process.
-        void window.overlay?.setOpacity(s.opacity);
-        void window.overlay?.setAlwaysOnTop(s.alwaysOnTop);
-        void window.overlay?.setClickThrough(s.clickThrough);
-
-        if (s.lastVideoId) {
-          const saved = lib.find((t) => t.videoId === s.lastVideoId);
-          setCurrent({
-            videoId: s.lastVideoId,
-            title: saved?.title ?? s.lastVideoId,
-            author: saved?.author,
-          });
-        }
+        setSettings(stored);
+        void window.overlay?.setOpacity(stored.opacity);
+        void window.overlay?.setAlwaysOnTop(stored.alwaysOnTop);
+        void window.overlay?.setClickThrough(stored.clickThrough);
       } catch {
         if (!cancelled) notify('Could not reach the local backend.', true);
+      } finally {
+        if (!cancelled) setReady(true);
       }
     })();
-
     return () => {
       cancelled = true;
     };
   }, [notify]);
 
-  // Push the current video into the player once both are settled.
   useEffect(() => {
-    if (current) player.load(current.videoId);
-    // player.load is stable (useCallback with no deps)
-  }, [current, player.load]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (settings.mode === 'video') setVideoMounted(true);
+  }, [settings.mode]);
 
-  useEffect(() => {
-    player.applyVolume(settings.volume);
-  }, [settings.volume, player.applyVolume]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // -------------------------------------------------------------- playback
-
-  const play = useCallback(
-    async (raw: string) => {
-      const value = raw.trim();
-      if (!value) return;
-      setBusy(true);
-      try {
-        const res = await fetch(`/api/resolve?url=${encodeURIComponent(value)}`);
-        const data = await res.json();
-        if (!res.ok) {
-          notify(data.error ?? 'Could not play that link.', true);
-          return;
-        }
-        setCurrent({ videoId: data.videoId, title: data.title, author: data.author });
-        update({ lastVideoId: data.videoId });
-        setInput('');
-        setLibraryOpen(false);
-      } catch {
-        notify('Could not reach the local backend.', true);
-      } finally {
-        setBusy(false);
-      }
-    },
-    [notify, update]
-  );
-
-  const playTrack = useCallback(
-    (track: Track) => {
-      setCurrent({ videoId: track.videoId, title: track.title, author: track.author });
-      update({ lastVideoId: track.videoId });
-      setLibraryOpen(false);
-    },
-    [update]
-  );
-
-  const saveCurrent = useCallback(async () => {
-    const target = input.trim() || current?.videoId;
-    if (!target) return;
-    setBusy(true);
-    try {
-      const res = await fetch('/api/library', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: target }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        notify(data.error ?? 'Could not save that video.', true);
-        return;
-      }
-      if (data.duplicate) {
-        notify('Already in your library.');
-      } else {
-        setLibrary((prev) => [data.track as Track, ...prev]);
-        notify('Saved to library.');
-      }
-    } catch {
-      notify('Could not reach the local backend.', true);
-    } finally {
-      setBusy(false);
-    }
-  }, [current, input, notify]);
-
-  const removeTrack = useCallback(async (track: Track) => {
-    setLibrary((prev) => prev.filter((t) => t.id !== track.id));
-    await fetch(`/api/library?id=${encodeURIComponent(track.id)}`, { method: 'DELETE' });
-  }, []);
-
-  // ------------------------------------------------------- window controls
+  // -------------------------------------------------------- window controls
 
   const setOpacity = useCallback(
     (value: number) => {
@@ -221,31 +120,34 @@ export default function OverlayApp() {
   // -------------------------------------------------------- global signals
 
   useEffect(() => {
-    const off = window.overlay?.onShortcut((action) => {
-      if (action === 'playpause') player.toggle();
+    return window.overlay?.onShortcut((action) => {
       if (action === 'opacity-up') setOpacity(settings.opacity + 0.1);
       if (action === 'opacity-down') setOpacity(settings.opacity - 0.1);
+      if (action === 'focus-chat') {
+        update({ mode: 'chat' });
+        setBarVisible(true);
+        setFocusToken((n) => n + 1);
+      }
     });
-    return off;
-  }, [player.toggle, setOpacity, settings.opacity]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [setOpacity, settings.opacity, update]);
 
   useEffect(() => {
-    const off = window.overlay?.onClickThroughChanged((value) => {
+    return window.overlay?.onClickThroughChanged((value) => {
       setSettings((prev) => (prev.clickThrough === value ? prev : { ...prev, clickThrough: value }));
     });
-    return off;
   }, []);
 
-  // Decides both toolbar auto-hide and, in click-through mode, when to briefly
-  // hand input back to the window so the controls stay usable.
+  // Drives toolbar auto-hide, and in click-through mode hands input back while
+  // the cursor is over the controls.
   useEffect(() => {
     const onMove = (event: MouseEvent) => {
       const overBar = event.clientY <= BAR_HEIGHT + 12;
-      const shouldShow = overBar || libraryOpen || inputFocused.current || !settings.compact;
-      setBarVisible(shouldShow);
+      setBarVisible(overBar || !settings.compact);
 
       if (settings.clickThrough) {
-        const wantsInput = overBar || libraryOpen;
+        // In chat, the whole panel needs to stay clickable — you cannot type
+        // into a window that is ignoring the mouse.
+        const wantsInput = settings.mode === 'chat' || overBar;
         if (wantsInput !== interactiveRef.current) {
           interactiveRef.current = wantsInput;
           window.overlay?.setInteractive(wantsInput);
@@ -253,45 +155,13 @@ export default function OverlayApp() {
       }
     };
 
-    const onLeave = () => {
-      if (settings.compact && !libraryOpen && !inputFocused.current) setBarVisible(false);
-      if (settings.clickThrough && interactiveRef.current) {
-        interactiveRef.current = false;
-        window.overlay?.setInteractive(false);
-      }
-    };
-
     document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseleave', onLeave);
-    return () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseleave', onLeave);
-    };
-  }, [libraryOpen, settings.clickThrough, settings.compact]);
+    return () => document.removeEventListener('mousemove', onMove);
+  }, [settings.clickThrough, settings.compact, settings.mode]);
 
   useEffect(() => {
     if (!settings.compact) setBarVisible(true);
   }, [settings.compact]);
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      const typing = event.target instanceof HTMLInputElement;
-      if (event.key === 'Escape') {
-        if (typing) (event.target as HTMLInputElement).blur();
-        else setLibraryOpen(false);
-        return;
-      }
-      if (typing) return;
-      if (event.code === 'Space') {
-        event.preventDefault();
-        player.toggle();
-      }
-      if (event.key === 'ArrowRight') player.seek(5);
-      if (event.key === 'ArrowLeft') player.seek(-5);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [player.toggle, player.seek]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ----------------------------------------------------------------- resize
 
@@ -319,80 +189,36 @@ export default function OverlayApp() {
 
   // ------------------------------------------------------------------ view
 
+  const isChat = settings.mode === 'chat';
+
   return (
     <div className={`shell${settings.clickThrough ? ' is-clickthrough' : ''}`}>
-      <div className="stage">
-        <div ref={player.mountRef} />
-        {!current && (
-          <div className="empty">
-            <h1>Overlay Player</h1>
-            <p>
-              Paste a YouTube link above to float it over whatever you are doing. Press{' '}
-              <kbd>⌘⇧Y</kbd> to show or hide, <kbd>⌘⇧C</kbd> for click-through.
-            </p>
-          </div>
-        )}
-      </div>
-
-      {settings.clickThrough && <div className="hover-sensor" />}
-
       <header
-        ref={barRef}
         className={`bar${barVisible ? '' : ' is-hidden'}`}
-        // The macOS panel window does not become key on click, so ask for focus
-        // before any interaction that needs the keyboard.
         onPointerDown={() => window.overlay?.focusWindow()}
       >
         <span className="grip">⋮⋮</span>
 
-        <button
-          className="btn"
-          onClick={player.toggle}
-          disabled={!current}
-          title="Play / pause (⌘⇧Space)"
-        >
-          {player.playing ? <PauseIcon /> : <PlayIcon />}
-        </button>
+        <div className="modes">
+          <button
+            className={`btn${isChat ? ' is-active' : ''}`}
+            onClick={() => update({ mode: 'chat' })}
+            title="Ask a question (⌘⇧A)"
+          >
+            <ChatIcon />
+          </button>
+          <button
+            className={`btn${!isChat ? ' is-active' : ''}`}
+            onClick={() => update({ mode: 'video' })}
+            title="Video player"
+          >
+            <VideoIcon />
+          </button>
+        </div>
 
-        <input
-          className="field"
-          value={input}
-          placeholder={current ? current.title : 'Paste a YouTube link…'}
-          onChange={(e) => setInput(e.target.value)}
-          onFocus={() => {
-            inputFocused.current = true;
-            setBarVisible(true);
-            window.overlay?.focusWindow();
-          }}
-          onBlur={() => {
-            inputFocused.current = false;
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') void play(input);
-          }}
-          spellCheck={false}
-        />
-
-        <button className="btn" onClick={() => void play(input)} disabled={busy || !input.trim()} title="Play">
-          <PlayIcon />
-        </button>
-
-        <button
-          className="btn"
-          onClick={() => void saveCurrent()}
-          disabled={busy || (!input.trim() && !current)}
-          title="Save to library"
-        >
-          <PlusIcon />
-        </button>
-
-        <button
-          className={`btn${libraryOpen ? ' is-active' : ''}`}
-          onClick={() => setLibraryOpen((v) => !v)}
-          title="Library"
-        >
-          <ListIcon />
-        </button>
+        <span className="title">
+          {isChat ? PROVIDERS[settings.provider].label : 'Video'}
+        </span>
 
         <input
           className="slider"
@@ -411,7 +237,6 @@ export default function OverlayApp() {
         >
           <GhostIcon />
         </button>
-
         <button
           className={`btn${settings.alwaysOnTop ? ' is-active' : ''}`}
           onClick={toggleAlwaysOnTop}
@@ -419,90 +244,31 @@ export default function OverlayApp() {
         >
           <PinIcon />
         </button>
-
-        <button className="btn" onClick={() => window.overlay?.hide()} title="Hide (⌘⇧Y to bring back)">
+        <button className="btn" onClick={() => window.overlay?.hide()} title="Hide (⌘⇧Y)">
           <MinusIcon />
         </button>
-
         <button className="btn is-danger" onClick={() => window.overlay?.quit()} title="Quit">
           <CloseIcon />
         </button>
       </header>
 
-      {libraryOpen && (
-        <aside className="library">
-          <div className="library-head">
-            <span>Library · {library.length}</span>
-            <label className="pill">
-              <input
-                type="checkbox"
-                checked={settings.compact}
-                onChange={(e) => update({ compact: e.target.checked })}
-              />
-              Auto-hide controls
-            </label>
-            <label className="pill">
-              Volume
-              <input
-                className="slider"
-                type="range"
-                min={0}
-                max={100}
-                value={settings.volume}
-                onChange={(e) => update({ volume: Number(e.target.value) })}
-              />
-            </label>
-          </div>
+      {/* The YouTube iframe swallows mousemove, so click-through mode needs a
+          transparent layer above it to notice the cursor reaching the toolbar. */}
+      {settings.clickThrough && !isChat && <div className="hover-sensor" />}
 
-          <div className="library-list">
-            {library.length === 0 ? (
-              <p className="library-empty">
-                Nothing saved yet. Paste a link and press <kbd>+</kbd> to keep it here.
-              </p>
-            ) : (
-              library.map((track) => (
-                <div
-                  key={track.id}
-                  className={`track${current?.videoId === track.videoId ? ' is-current' : ''}`}
-                  onClick={() => playTrack(track)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') playTrack(track);
-                  }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={track.thumbnail} alt="" />
-                  <div className="track-meta">
-                    <b>{track.title}</b>
-                    <small>{track.author ?? track.videoId}</small>
-                  </div>
-                  <button
-                    className="btn"
-                    title="Open on YouTube"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      window.overlay?.openExternal(`https://www.youtube.com/watch?v=${track.videoId}`);
-                    }}
-                  >
-                    <ExternalIcon />
-                  </button>
-                  <button
-                    className="btn is-danger"
-                    title="Remove"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void removeTrack(track);
-                    }}
-                  >
-                    <TrashIcon />
-                  </button>
-                </div>
-              ))
-            )}
+      <div className="body">
+        {ready && (
+          <div className="panel" hidden={!isChat}>
+            <Chat settings={settings} update={update} focusToken={focusToken} notify={notify} />
           </div>
-        </aside>
-      )}
+        )}
+
+        {videoMounted && (
+          <div className="panel" hidden={isChat}>
+            <VideoPanel settings={settings} update={update} notify={notify} active={!isChat} />
+          </div>
+        )}
+      </div>
 
       {toast && <div className={`toast${toast.error ? ' is-error' : ''}`}>{toast.text}</div>}
 
