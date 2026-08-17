@@ -23,7 +23,7 @@ contextBridge.exposeInMainWorld('overlay', {
   quit: () => ipcRenderer.send('overlay:quit'),
   openExternal: (url) => ipcRenderer.send('overlay:open-external', url),
 
-  /** Global shortcuts the main process forwards: 'playpause' | 'opacity-up' | 'opacity-down'. */
+  /** Global shortcuts the main process forwards: 'opacity-up' | 'opacity-down' | 'focus-chat'. */
   onShortcut: (callback) => {
     const handler = (_event, action) => callback(action);
     ipcRenderer.on('overlay:shortcut', handler);

@@ -1,52 +1,15 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { ProviderId } from '@/lib/providers';
+import { DEFAULT_SETTINGS, type Settings } from '@/lib/settings';
 
 /**
  * Single-user local persistence. Electron passes its userData directory as
  * APP_DATA_DIR; running `next dev` on its own falls back to ./.data so the
  * backend works without Electron.
+ *
+ * API keys deliberately do not live here — see lib/secrets.ts.
  */
 const dataDir = process.env.APP_DATA_DIR || path.join(process.cwd(), '.data');
-
-export type Track = {
-  id: string;
-  videoId: string;
-  title: string;
-  author?: string;
-  thumbnail?: string;
-  addedAt: number;
-};
-
-export type Settings = {
-  opacity: number;
-  clickThrough: boolean;
-  alwaysOnTop: boolean;
-  volume: number;
-  autoplay: boolean;
-  compact: boolean;
-  lastVideoId: string | null;
-  /** Which panel the overlay shows. Chat is the default. */
-  mode: 'chat' | 'video';
-  provider: ProviderId;
-  /** Per-provider model override; blank falls back to the provider default. */
-  models: Partial<Record<ProviderId, string>>;
-};
-
-export const DEFAULT_SETTINGS: Settings = {
-  // Semi-transparent by default so whatever sits behind the overlay stays
-  // readable through it.
-  opacity: 0.6,
-  clickThrough: false,
-  alwaysOnTop: true,
-  volume: 60,
-  autoplay: true,
-  compact: false,
-  lastVideoId: null,
-  mode: 'chat',
-  provider: 'anthropic',
-  models: {},
-};
 
 async function readJson<T>(file: string, fallback: T): Promise<T> {
   try {
@@ -68,18 +31,18 @@ async function writeJson(file: string, value: unknown): Promise<void> {
   await fs.rename(tmp, target);
 }
 
-export async function getLibrary(): Promise<Track[]> {
-  const tracks = await readJson<Track[]>('library.json', []);
-  return Array.isArray(tracks) ? tracks : [];
-}
-
-export async function saveLibrary(tracks: Track[]): Promise<void> {
-  await writeJson('library.json', tracks);
-}
-
 export async function getSettings(): Promise<Settings> {
-  const stored = await readJson<Partial<Settings>>('settings.json', {});
-  return { ...DEFAULT_SETTINGS, ...stored };
+  const stored = await readJson<Record<string, unknown>>('settings.json', {});
+
+  // Keep only fields the current Settings shape defines, so keys left behind by
+  // removed features (the old video player's volume/autoplay/lastVideoId) are
+  // dropped rather than carried forward on the next save.
+  const known: Partial<Settings> = {};
+  for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]) {
+    if (key in stored) (known as Record<string, unknown>)[key] = stored[key];
+  }
+
+  return { ...DEFAULT_SETTINGS, ...known };
 }
 
 export async function saveSettings(patch: Partial<Settings>): Promise<Settings> {

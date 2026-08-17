@@ -5,7 +5,7 @@ export type OverlayState = {
   platform: NodeJS.Platform;
 };
 
-export type ShortcutAction = 'playpause' | 'opacity-up' | 'opacity-down' | 'focus-chat';
+export type ShortcutAction = 'opacity-up' | 'opacity-down' | 'focus-chat';
 
 export type OverlayBridge = {
   getState(): Promise<OverlayState>;
@@ -28,8 +28,6 @@ declare global {
   interface Window {
     /** Injected by electron/preload.js. Undefined when the UI runs in a plain browser. */
     overlay?: OverlayBridge;
-    YT?: any;
-    onYouTubeIframeAPIReady?: () => void;
   }
 }
 

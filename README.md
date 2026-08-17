@@ -1,27 +1,69 @@
 # Overlay Player
 
-A floating, always-on-top overlay that sits above whatever else you are doing.
-Ask an AI a question and read the answer without leaving the app you're in — or
-switch to the video panel and float a YouTube video instead. One codebase: a
-Next.js app (UI **and** backend API) rendered inside an Electron window. Built
-for macOS first, packages for Windows from the same source.
+A floating, always-on-top AI assistant that sits above whatever else you are
+doing. Ask a question, read the answer, get back to work — without switching
+away from the app you're in. One codebase: a Next.js app (UI **and** backend
+API) rendered inside an Electron window. Built for macOS first, packages for
+Windows from the same source.
 
-Single user by design — no accounts, no auth, no server. Your keys, library, and
-settings live in files inside the app's own data directory.
+Single user by design — no accounts, no auth, no server of your own. Your keys
+and settings live in files inside the app's own data directory.
 
-## The chat panel
+## Quick start
 
-Bring your own key for **Claude**, **ChatGPT**, or **Gemini** — whichever you
-have. Pick the provider in the key panel (the 🔑 button), paste a key, and ask.
-Answers stream in token by token. `⌘⇧A` from any app reveals the overlay and
-puts the caret straight in the question box.
+```bash
+npm install
+npm run dev
+```
+
+`npm run dev` starts `next dev` on port 3000 and opens the Electron overlay once
+the server is up. Paste an API key in the 🔑 panel and ask a question.
+
+## What it does
+
+- **Bring your own key** for **Claude**, **ChatGPT**, or **Gemini** — whichever
+  you have. Switch providers from the key panel at any time.
+- **Streams answers** token by token, with a stop button mid-answer.
+- **`⌘⇧A` from any app** reveals the overlay with the caret already in the
+  question box.
+- **Always on top**, above every app including full-screen VS Code, Chrome and
+  Safari. On macOS the window is backed by an `NSPanel` (`type: 'panel'`), which
+  is what allows it to float over another app's full-screen Space — a plain
+  always-on-top window cannot. The pin is re-applied on show, on blur, and on
+  any display change, because macOS quietly drops it in all three cases.
+- **Present on every Space**, and `⌘⇧M` jumps it to whichever monitor your
+  cursor is on. A window only ever lives on one physical display at a time, so
+  multi-monitor is an explicit move rather than automatic.
+- **See-through by default** — opacity starts at 60% so whatever is behind the
+  overlay stays readable. The slider goes from 20% to fully opaque.
+- **Click-through mode** — the window goes ghost and your clicks land on the app
+  underneath.
+- **Frameless and draggable** by its toolbar; resize from the bottom-right grip.
+- **Tray icon** to show/hide/quit, since the window has no title bar.
+- Remembers window position, size, opacity, and your provider choice.
+
+### Models
 
 The model name is a free-text field per provider, so you can point it at
-anything your account can use rather than waiting for this app to add it.
-`OPENAI_BASE_URL` redirects the ChatGPT provider at any OpenAI-compatible
-endpoint (a local model server, Azure OpenAI, OpenRouter).
+anything your account can use rather than waiting for this app to add it. Leave
+it blank to use the provider's default.
 
-### About your API keys
+`OPENAI_BASE_URL` redirects the ChatGPT provider at any OpenAI-compatible
+endpoint — a local model server, Azure OpenAI, OpenRouter.
+
+### Shortcuts
+
+| Shortcut | Action |
+| --- | --- |
+| `⌘⇧A` / `Ctrl+Shift+A` | Show the overlay and focus the question box |
+| `⌘⇧Y` / `Ctrl+Shift+Y` | Show / hide the overlay |
+| `⌘⇧C` / `Ctrl+Shift+C` | Toggle click-through |
+| `⌘⇧M` / `Ctrl+Shift+M` | Move the overlay to the screen your cursor is on |
+| `⌘⇧↑` / `⌘⇧↓` | Opacity up / down |
+| `⌘⇧←` / `⌘⇧→` | Nudge the window left / right |
+| `Enter` | Send · `Shift+Enter` for a newline |
+
+## About your API keys
 
 Keys are stored in `keys.json` in the app's data directory, written with
 owner-only permissions (`0600`), separate from `settings.json`. They are read
@@ -34,62 +76,26 @@ you wouldn't put in a dotfile. Alternatively, set `ANTHROPIC_API_KEY`,
 `OPENAI_API_KEY`, or `GEMINI_API_KEY` in the environment and the app will use
 those instead, writing nothing to disk.
 
-## Quick start
-
-```bash
-npm install
-npm run dev
-```
-
-`npm run dev` starts `next dev` on port 3000 and opens the Electron overlay once
-the server is up. Paste a YouTube link in the bar and press Enter.
-
-## What it does
-
-- **Always on top**, above every app including full-screen VS Code, Chrome and
-  Safari. On macOS the window is backed by an `NSPanel` (`type: 'panel'`), which
-  is what allows it to float over another app's full-screen Space — a plain
-  always-on-top window cannot. The pin is re-applied on show, on blur, and on
-  any display change, because macOS quietly drops it in all three cases.
-- **Present on every Space**, and `⌘⇧M` jumps it to whichever monitor your
-  cursor is on. A window only ever lives on one physical display at a time, so
-  multi-monitor is an explicit move rather than automatic.
-- **See-through by default** — opacity starts at 60% so whatever is behind the
-  overlay stays readable. The slider goes from 20% to fully opaque.
-- **Click-through mode** — the window goes ghost and your clicks land on the app
-  underneath, while the toolbar re-arms itself whenever the cursor moves over it.
-- **Frameless and draggable** by its toolbar; resize from the bottom-right grip.
-- **Auto-hiding controls** so only the video shows.
-- **A saved library** with titles and thumbnails pulled from YouTube's oEmbed
-  endpoint (no API key needed).
-- **Tray icon** to show/hide/quit, since the window has no title bar.
-- Remembers window position, size, opacity, volume, and the last video played.
-
-### Shortcuts
-
-| Shortcut | Action |
-| --- | --- |
-| `⌘⇧A` / `Ctrl+Shift+A` | Show the overlay and focus the question box |
-| `⌘⇧Y` / `Ctrl+Shift+Y` | Show / hide the overlay |
-| `⌘⇧C` / `Ctrl+Shift+C` | Toggle click-through |
-| `⌘⇧M` / `Ctrl+Shift+M` | Move the overlay to the screen your cursor is on |
-| `⌘⇧Space` | Play / pause |
-| `⌘⇧↑` / `⌘⇧↓` | Opacity up / down |
-| `⌘⇧←` / `⌘⇧→` | Nudge the window left / right |
-| `Space` | Play / pause (when the overlay has focus) |
-| `←` / `→` | Seek 5s (when the overlay has focus) |
-
 ## How it fits together
 
 ```
-electron/main.js      Overlay window, tray, global shortcuts, boots the server
-electron/preload.js   The only bridge to the renderer (contextIsolation on)
-src/app/              Next.js App Router — the UI
-src/app/api/          The backend: settings, library, link resolution
-src/lib/store.ts      JSON persistence in the app's data directory
-src/lib/youtube.ts    Link parsing (watch, youtu.be, /shorts, /embed, bare id)
-scripts/              Icon generation + standalone server assembly
+electron/main.js       Overlay window, tray, global shortcuts, boots the server
+electron/preload.js    The only bridge to the renderer (contextIsolation on)
+src/app/               Next.js App Router — the UI
+src/app/api/chat/      Streams a reply from the selected provider
+src/app/api/keys/      Stores API keys; reports presence, never values
+src/app/api/settings/  Window and provider preferences
+src/lib/chat.ts        Per-provider streaming
+src/lib/providers.ts   Provider registry and defaults
+src/lib/secrets.ts     Key storage (0600, server-side only)
+src/lib/settings.ts    Settings shape + defaults, shared by client and server
+src/lib/store.ts       JSON persistence in the app's data directory
+scripts/               Icon generation + standalone server assembly
 ```
+
+`src/lib/settings.ts` is deliberately free of Node imports: the client shares it
+with the server, and importing `store.ts` from a client component would drag
+`node:fs` into the browser bundle and fail the build.
 
 **In development**, Electron attaches to `next dev` on port 3000.
 
@@ -129,7 +135,7 @@ through `scripts/start-electron.mjs`, which strips it — use those rather than
 calling `electron .` directly.
 
 **A packaged build opens to a blank window.** That means the bundled server
-could not start. `npm run build` now fails loudly if the standalone payload is
+could not start. `npm run build` fails loudly if the standalone payload is
 incomplete; if you change the packaging config, note that electron-builder
 refuses to copy a `node_modules` directory sitting at the root of an
 `extraResources` source, which is why the payload is nested under
@@ -137,11 +143,8 @@ refuses to copy a `node_modules` directory sitting at the root of an
 
 ## Notes and limits
 
-- Playback goes through YouTube's official IFrame embed. Videos whose owners
-  disabled off-site embedding will not play — the app says so and offers an
-  *Open on YouTube* button. There is no way around that restriction, and
-  bypassing it would break YouTube's Terms of Service.
 - The overlay is a normal, visible window. It appears in screen recordings and
   screen shares like any other window.
 - Global shortcuts are system-wide; if another app already owns one, Electron
   logs a warning at startup and that single shortcut is skipped.
+- Conversations are held in memory only — closing the overlay clears the thread.

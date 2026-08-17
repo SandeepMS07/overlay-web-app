@@ -47,8 +47,7 @@ let alwaysOnTop = true;
 
 const stateFile = () => path.join(app.getPath('userData'), 'window-state.json');
 
-// Sized for the chat panel, which is the default view; the video player is
-// comfortable at this width too.
+// Sized for the chat panel: tall enough to read an answer without scrolling.
 const DEFAULT_BOUNDS = { width: 460, height: 560 };
 
 // --------------------------------------------------------------------------
@@ -241,10 +240,9 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
-      // Keep the video running at full rate while the overlay is unfocused,
-      // and let it start without a click.
+      // Chromium throttles timers in unfocused windows, which would stall a
+      // reply still streaming in while you work in another app.
       backgroundThrottling: false,
-      autoplayPolicy: 'no-user-gesture-required',
     },
   });
 
@@ -391,7 +389,6 @@ function registerShortcuts() {
     win.webContents.send('overlay:shortcut', 'focus-chat');
   });
 
-  bind('CommandOrControl+Shift+Space', () => win?.webContents.send('overlay:shortcut', 'playpause'));
   bind('CommandOrControl+Shift+Up', () => win?.webContents.send('overlay:shortcut', 'opacity-up'));
   bind('CommandOrControl+Shift+Down', () => win?.webContents.send('overlay:shortcut', 'opacity-down'));
   bind('CommandOrControl+Shift+Left', () => nudge(-40, 0));

@@ -2,41 +2,18 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Chat from '@/components/Chat';
-import VideoPanel from '@/components/VideoPanel';
-import type { Settings } from '@/lib/store';
+import { DEFAULT_SETTINGS, type Settings } from '@/lib/settings';
 import { PROVIDERS } from '@/lib/providers';
-import {
-  ChatIcon,
-  CloseIcon,
-  GhostIcon,
-  MinusIcon,
-  PinIcon,
-  VideoIcon,
-} from '@/components/Icons';
+import { CloseIcon, GhostIcon, MinusIcon, PinIcon } from '@/components/Icons';
 
 const BAR_HEIGHT = 40;
 
-const DEFAULTS: Settings = {
-  opacity: 0.6,
-  clickThrough: false,
-  alwaysOnTop: true,
-  volume: 60,
-  autoplay: true,
-  compact: false,
-  lastVideoId: null,
-  mode: 'chat',
-  provider: 'anthropic',
-  models: {},
-};
-
 export default function OverlayApp() {
-  const [settings, setSettings] = useState<Settings>(DEFAULTS);
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [ready, setReady] = useState(false);
   const [barVisible, setBarVisible] = useState(true);
   const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null);
   const [focusToken, setFocusToken] = useState(0);
-  // The video panel stays mounted once used so audio keeps playing behind chat.
-  const [videoMounted, setVideoMounted] = useState(false);
 
   const interactiveRef = useRef(true);
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -90,10 +67,6 @@ export default function OverlayApp() {
     };
   }, [notify]);
 
-  useEffect(() => {
-    if (settings.mode === 'video') setVideoMounted(true);
-  }, [settings.mode]);
-
   // -------------------------------------------------------- window controls
 
   const setOpacity = useCallback(
@@ -124,12 +97,11 @@ export default function OverlayApp() {
       if (action === 'opacity-up') setOpacity(settings.opacity + 0.1);
       if (action === 'opacity-down') setOpacity(settings.opacity - 0.1);
       if (action === 'focus-chat') {
-        update({ mode: 'chat' });
         setBarVisible(true);
         setFocusToken((n) => n + 1);
       }
     });
-  }, [setOpacity, settings.opacity, update]);
+  }, [setOpacity, settings.opacity]);
 
   useEffect(() => {
     return window.overlay?.onClickThroughChanged((value) => {
@@ -137,27 +109,21 @@ export default function OverlayApp() {
     });
   }, []);
 
-  // Drives toolbar auto-hide, and in click-through mode hands input back while
-  // the cursor is over the controls.
   useEffect(() => {
     const onMove = (event: MouseEvent) => {
-      const overBar = event.clientY <= BAR_HEIGHT + 12;
-      setBarVisible(overBar || !settings.compact);
+      setBarVisible(event.clientY <= BAR_HEIGHT + 12 || !settings.compact);
 
-      if (settings.clickThrough) {
-        // In chat, the whole panel needs to stay clickable — you cannot type
-        // into a window that is ignoring the mouse.
-        const wantsInput = settings.mode === 'chat' || overBar;
-        if (wantsInput !== interactiveRef.current) {
-          interactiveRef.current = wantsInput;
-          window.overlay?.setInteractive(wantsInput);
-        }
+      // The whole panel has to stay clickable in click-through mode — you
+      // cannot type into a window that is ignoring the mouse.
+      if (settings.clickThrough && !interactiveRef.current) {
+        interactiveRef.current = true;
+        window.overlay?.setInteractive(true);
       }
     };
 
     document.addEventListener('mousemove', onMove);
     return () => document.removeEventListener('mousemove', onMove);
-  }, [settings.clickThrough, settings.compact, settings.mode]);
+  }, [settings.clickThrough, settings.compact]);
 
   useEffect(() => {
     if (!settings.compact) setBarVisible(true);
@@ -189,8 +155,6 @@ export default function OverlayApp() {
 
   // ------------------------------------------------------------------ view
 
-  const isChat = settings.mode === 'chat';
-
   return (
     <div className={`shell${settings.clickThrough ? ' is-clickthrough' : ''}`}>
       <header
@@ -198,26 +162,8 @@ export default function OverlayApp() {
         onPointerDown={() => window.overlay?.focusWindow()}
       >
         <span className="grip">⋮⋮</span>
-
-        <div className="modes">
-          <button
-            className={`btn${isChat ? ' is-active' : ''}`}
-            onClick={() => update({ mode: 'chat' })}
-            title="Ask a question (⌘⇧A)"
-          >
-            <ChatIcon />
-          </button>
-          <button
-            className={`btn${!isChat ? ' is-active' : ''}`}
-            onClick={() => update({ mode: 'video' })}
-            title="Video player"
-          >
-            <VideoIcon />
-          </button>
-        </div>
-
         <span className="title">
-          {isChat ? PROVIDERS[settings.provider].label : 'Video'}
+          <strong>{PROVIDERS[settings.provider].label}</strong>
         </span>
 
         <input
@@ -252,21 +198,9 @@ export default function OverlayApp() {
         </button>
       </header>
 
-      {/* The YouTube iframe swallows mousemove, so click-through mode needs a
-          transparent layer above it to notice the cursor reaching the toolbar. */}
-      {settings.clickThrough && !isChat && <div className="hover-sensor" />}
-
       <div className="body">
         {ready && (
-          <div className="panel" hidden={!isChat}>
-            <Chat settings={settings} update={update} focusToken={focusToken} notify={notify} />
-          </div>
-        )}
-
-        {videoMounted && (
-          <div className="panel" hidden={isChat}>
-            <VideoPanel settings={settings} update={update} notify={notify} active={!isChat} />
-          </div>
+          <Chat settings={settings} update={update} focusToken={focusToken} notify={notify} />
         )}
       </div>
 

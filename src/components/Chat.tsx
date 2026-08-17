@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PROVIDER_IDS, PROVIDERS, type ChatMessage, type ProviderId } from '@/lib/providers';
-import type { Settings } from '@/lib/store';
+import type { Settings } from '@/lib/settings';
 import { CloseIcon, KeyIcon, SendIcon, StopIcon, TrashIcon } from '@/components/Icons';
 
 type Props = {
@@ -254,6 +254,15 @@ export default function Chat({ settings, update, focusToken, notify }: Props) {
                 <TrashIcon />
               </button>
             )}
+          </label>
+
+          <label className="keys-field keys-check">
+            <input
+              type="checkbox"
+              checked={settings.compact}
+              onChange={(e) => update({ compact: e.target.checked })}
+            />
+            <span>Auto-hide the toolbar until the cursor reaches the top</span>
           </label>
 
           <p className="keys-note">
