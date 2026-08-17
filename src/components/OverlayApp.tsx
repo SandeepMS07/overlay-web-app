@@ -128,7 +128,7 @@ export default function OverlayApp() {
     });
   }, []);
 
-  // The tray item and ⌘⇧P flip this in the main process, so mirror it back into
+  // The tray item and ⌘⌥P flip this in the main process, so mirror it back into
   // the UI and persist it — otherwise the toolbar would show a stale state.
   useEffect(() => {
     return window.overlay?.onHiddenFromCaptureChanged((value) => {
@@ -212,8 +212,8 @@ export default function OverlayApp() {
           onClick={toggleHiddenFromCapture}
           title={
             settings.hiddenFromCapture
-              ? 'Hidden from screen sharing and recordings — click to make it visible (⌘⇧P)'
-              : 'Visible in screen sharing and recordings — click to hide it (⌘⇧P)'
+              ? 'Hidden from screen sharing and recordings — click to make it visible (⌘⌥P)'
+              : 'Visible in screen sharing and recordings — click to hide it (⌘⌥P)'
           }
         >
           {settings.hiddenFromCapture ? <NoCaptureIcon /> : <CaptureIcon />}

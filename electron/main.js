@@ -380,7 +380,7 @@ function rebuildTrayMenu() {
         label: 'Hide from screen sharing',
         type: 'checkbox',
         checked: hiddenFromCapture,
-        accelerator: 'CmdOrCtrl+Shift+P',
+        accelerator: 'CmdOrCtrl+Alt+P',
         click: () => setHiddenFromCapture(!hiddenFromCapture),
       },
       { type: 'separator' },
@@ -424,7 +424,9 @@ function registerShortcuts() {
   bind('CommandOrControl+Shift+Y', toggleVisibility);
   bind('CommandOrControl+Shift+C', () => setClickThrough(!clickThrough));
   bind('CommandOrControl+Shift+M', moveToActiveDisplay);
-  bind('CommandOrControl+Shift+P', () => setHiddenFromCapture(!hiddenFromCapture));
+  // Deliberately Alt and not Shift: a global shortcut wins over every app, and
+  // Cmd+Shift+P is VS Code's command palette.
+  bind('CommandOrControl+Alt+P', () => setHiddenFromCapture(!hiddenFromCapture));
 
   // Ask-a-question from anywhere: reveal the overlay, take focus, and let the
   // renderer put the caret in the composer.

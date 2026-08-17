@@ -34,7 +34,7 @@ the server is up. Paste an API key in the 🔑 panel and ask a question.
 - **Present on every Space**, and `⌘⇧M` jumps it to whichever monitor your
   cursor is on. A window only ever lives on one physical display at a time, so
   multi-monitor is an explicit move rather than automatic.
-- **Excluded from screen capture** (on by default, `⌘⇧P` to toggle) — the
+- **Excluded from screen capture** (on by default, `⌘⌥P` to toggle) — the
   window is left out of screen shares, recordings and screenshots. See
   [Screen-capture exclusion](#screen-capture-exclusion) for what that does and
   does not cover.
@@ -63,7 +63,7 @@ endpoint — a local model server, Azure OpenAI, OpenRouter.
 | `⌘⇧Y` / `Ctrl+Shift+Y` | Show / hide the overlay |
 | `⌘⇧C` / `Ctrl+Shift+C` | Toggle click-through |
 | `⌘⇧M` / `Ctrl+Shift+M` | Move the overlay to the screen your cursor is on |
-| `⌘⇧P` / `Ctrl+Shift+P` | Toggle exclusion from screen capture |
+| `⌘⌥P` / `Ctrl+Alt+P` | Toggle exclusion from screen capture |
 | `⌘⇧↑` / `⌘⇧↓` | Opacity up / down |
 | `⌘⇧←` / `⌘⇧→` | Nudge the window left / right |
 | `Enter` | Send · `Shift+Enter` for a newline |
@@ -73,7 +73,7 @@ endpoint — a local model server, Azure OpenAI, OpenRouter.
 The overlay asks the OS window server to leave it out of captures
 (`setContentProtection`), which is the same mechanism password managers use to
 keep a vault out of a recording. It is **on by default**; the toolbar button and
-`⌘⇧P` toggle it, and the choice is remembered.
+`⌘⌥P` toggle it, and the choice is remembered.
 
 - **macOS** — `NSWindowSharingNone`. Honoured by ScreenCaptureKit and the older
   CGWindowList path, which is what Zoom, Meet, Teams, Slack, QuickTime and `⌘⇧5`
