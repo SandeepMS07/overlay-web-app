@@ -18,7 +18,6 @@ export async function PATCH(request: Request) {
   if (typeof body.opacity === 'number') patch.opacity = clamp(body.opacity, 0.15, 1);
   if (typeof body.clickThrough === 'boolean') patch.clickThrough = body.clickThrough;
   if (typeof body.alwaysOnTop === 'boolean') patch.alwaysOnTop = body.alwaysOnTop;
-  if (typeof body.hiddenFromCapture === 'boolean') patch.hiddenFromCapture = body.hiddenFromCapture;
   if (typeof body.compact === 'boolean') patch.compact = body.compact;
   if (isProviderId(body.provider)) patch.provider = body.provider;
   if (body.models && typeof body.models === 'object') {

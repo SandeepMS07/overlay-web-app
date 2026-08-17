@@ -44,8 +44,6 @@ let serverUrl = '';
 let clickThrough = false;
 // Mirrors the user's pin preference so re-pinning does not override it.
 let alwaysOnTop = true;
-// Excluded from screen capture by default — see setHiddenFromCapture().
-let hiddenFromCapture = true;
 
 const stateFile = () => path.join(app.getPath('userData'), 'window-state.json');
 
@@ -192,7 +190,9 @@ function pinToAllSpaces() {
 
 /**
  * Asks the OS window server to leave this window out of screen captures, so it
- * does not appear in a shared screen, a recording, or a screenshot.
+ * does not appear in a shared screen, a recording, or a screenshot. Always on:
+ * there is deliberately no toggle, no tray item and no shortcut, so it cannot
+ * be switched off by accident mid-call.
  *
  *   macOS   — NSWindowSharingNone. Honoured by ScreenCaptureKit and the older
  *             CGWindowList path, which is what Zoom, Meet, Teams, Slack,
@@ -208,15 +208,15 @@ function pinToAllSpaces() {
  */
 function applyContentProtection() {
   if (!win || win.isDestroyed()) return;
-  win.setContentProtection(hiddenFromCapture);
+  win.setContentProtection(true);
 }
 
-function setHiddenFromCapture(enabled) {
-  hiddenFromCapture = Boolean(enabled);
+/**
+ * Re-asserts every native flag macOS is known to drop out from under us.
+ */
+function reassertWindowFlags() {
+  pinToAllSpaces();
   applyContentProtection();
-  win?.webContents.send('overlay:hidden-from-capture-changed', hiddenFromCapture);
-  rebuildTrayMenu();
-  return hiddenFromCapture;
 }
 
 /**
@@ -288,16 +288,11 @@ function createWindow() {
   // macOS drops the all-Spaces flag when a window is hidden and shown again,
   // and both a display change and another app entering full screen can knock
   // the window out of its always-on-top level. Re-assert it on each of those.
-  win.on('show', () => {
-    pinToAllSpaces();
-    // Re-asserted for the same reason: the flag lives on the native window and
-    // a hide/show cycle is exactly when macOS has been seen to drop it.
-    applyContentProtection();
-  });
-  win.on('blur', pinToAllSpaces);
-  screen.on('display-added', pinToAllSpaces);
-  screen.on('display-removed', pinToAllSpaces);
-  screen.on('display-metrics-changed', pinToAllSpaces);
+  win.on('show', reassertWindowFlags);
+  win.on('blur', reassertWindowFlags);
+  screen.on('display-added', reassertWindowFlags);
+  screen.on('display-removed', reassertWindowFlags);
+  screen.on('display-metrics-changed', reassertWindowFlags);
 
   win.on('resize', saveBounds);
   win.on('move', saveBounds);
@@ -376,13 +371,6 @@ function rebuildTrayMenu() {
         accelerator: 'CmdOrCtrl+Shift+M',
         click: moveToActiveDisplay,
       },
-      {
-        label: 'Hide from screen sharing',
-        type: 'checkbox',
-        checked: hiddenFromCapture,
-        accelerator: 'CmdOrCtrl+Alt+P',
-        click: () => setHiddenFromCapture(!hiddenFromCapture),
-      },
       { type: 'separator' },
       {
         label: 'Reset Position',
@@ -424,9 +412,6 @@ function registerShortcuts() {
   bind('CommandOrControl+Shift+Y', toggleVisibility);
   bind('CommandOrControl+Shift+C', () => setClickThrough(!clickThrough));
   bind('CommandOrControl+Shift+M', moveToActiveDisplay);
-  // Deliberately Alt and not Shift: a global shortcut wins over every app, and
-  // Cmd+Shift+P is VS Code's command palette.
-  bind('CommandOrControl+Alt+P', () => setHiddenFromCapture(!hiddenFromCapture));
 
   // Ask-a-question from anywhere: reveal the overlay, take focus, and let the
   // renderer put the caret in the composer.
@@ -451,14 +436,9 @@ function registerIpc() {
   ipcMain.handle('overlay:get-state', () => ({
     clickThrough,
     alwaysOnTop: win?.isAlwaysOnTop() ?? true,
-    hiddenFromCapture,
     bounds: win?.getBounds() ?? null,
     platform: process.platform,
   }));
-
-  ipcMain.handle('overlay:set-hidden-from-capture', (_e, enabled) =>
-    setHiddenFromCapture(enabled)
-  );
 
   ipcMain.handle('overlay:set-click-through', (_e, enabled) => {
     setClickThrough(enabled);

@@ -4,14 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Chat from '@/components/Chat';
 import { DEFAULT_SETTINGS, type Settings } from '@/lib/settings';
 import { PROVIDERS } from '@/lib/providers';
-import {
-  CaptureIcon,
-  CloseIcon,
-  GhostIcon,
-  MinusIcon,
-  NoCaptureIcon,
-  PinIcon,
-} from '@/components/Icons';
+import { CloseIcon, GhostIcon, MinusIcon, PinIcon } from '@/components/Icons';
 
 const BAR_HEIGHT = 40;
 
@@ -63,7 +56,6 @@ export default function OverlayApp() {
         void window.overlay?.setOpacity(stored.opacity);
         void window.overlay?.setAlwaysOnTop(stored.alwaysOnTop);
         void window.overlay?.setClickThrough(stored.clickThrough);
-        void window.overlay?.setHiddenFromCapture(stored.hiddenFromCapture);
       } catch {
         if (!cancelled) notify('Could not reach the local backend.', true);
       } finally {
@@ -92,17 +84,6 @@ export default function OverlayApp() {
     void window.overlay?.setClickThrough(next);
   }, [settings.clickThrough, update]);
 
-  const toggleHiddenFromCapture = useCallback(() => {
-    const next = !settings.hiddenFromCapture;
-    update({ hiddenFromCapture: next });
-    void window.overlay?.setHiddenFromCapture(next);
-    notify(
-      next
-        ? 'Hidden from screen sharing and recordings.'
-        : 'Visible in screen sharing and recordings.'
-    );
-  }, [notify, settings.hiddenFromCapture, update]);
-
   const toggleAlwaysOnTop = useCallback(() => {
     const next = !settings.alwaysOnTop;
     update({ alwaysOnTop: next });
@@ -128,32 +109,42 @@ export default function OverlayApp() {
     });
   }, []);
 
-  // The tray item and ⌘⌥P flip this in the main process, so mirror it back into
-  // the UI and persist it — otherwise the toolbar would show a stale state.
+  // Mirrors whether the window is currently accepting the mouse. Turning
+  // click-through on makes the main process ignore it, so this has to follow —
+  // otherwise the re-arm below sees a stale `true` and never fires, leaving the
+  // panel permanently unclickable.
   useEffect(() => {
-    return window.overlay?.onHiddenFromCaptureChanged((value) => {
-      setSettings((prev) => {
-        if (prev.hiddenFromCapture === value) return prev;
-        persist({ hiddenFromCapture: value });
-        return { ...prev, hiddenFromCapture: value };
-      });
-    });
-  }, [persist]);
+    interactiveRef.current = !settings.clickThrough;
+  }, [settings.clickThrough]);
 
   useEffect(() => {
+    const setInteractive = (value: boolean) => {
+      if (interactiveRef.current === value) return;
+      interactiveRef.current = value;
+      window.overlay?.setInteractive(value);
+    };
+
     const onMove = (event: MouseEvent) => {
       setBarVisible(event.clientY <= BAR_HEIGHT + 12 || !settings.compact);
 
-      // The whole panel has to stay clickable in click-through mode — you
-      // cannot type into a window that is ignoring the mouse.
-      if (settings.clickThrough && !interactiveRef.current) {
-        interactiveRef.current = true;
-        window.overlay?.setInteractive(true);
-      }
+      // `forward: true` keeps delivering mousemove while clicks pass through,
+      // so the cursor arriving over the panel is our cue to take the mouse
+      // back — you cannot type into a window that is ignoring it.
+      if (settings.clickThrough) setInteractive(true);
+    };
+
+    // ...and the cursor leaving hands clicks back to the app underneath, which
+    // is the whole point of the mode.
+    const onLeave = () => {
+      if (settings.clickThrough) setInteractive(false);
     };
 
     document.addEventListener('mousemove', onMove);
-    return () => document.removeEventListener('mousemove', onMove);
+    document.addEventListener('mouseleave', onLeave);
+    return () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseleave', onLeave);
+    };
   }, [settings.clickThrough, settings.compact]);
 
   useEffect(() => {
@@ -207,17 +198,6 @@ export default function OverlayApp() {
           title={`Opacity ${Math.round(settings.opacity * 100)}%`}
         />
 
-        <button
-          className={`btn${settings.hiddenFromCapture ? ' is-active' : ''}`}
-          onClick={toggleHiddenFromCapture}
-          title={
-            settings.hiddenFromCapture
-              ? 'Hidden from screen sharing and recordings — click to make it visible (⌘⌥P)'
-              : 'Visible in screen sharing and recordings — click to hide it (⌘⌥P)'
-          }
-        >
-          {settings.hiddenFromCapture ? <NoCaptureIcon /> : <CaptureIcon />}
-        </button>
         <button
           className={`btn${settings.clickThrough ? ' is-active' : ''}`}
           onClick={toggleClickThrough}

@@ -10,8 +10,6 @@ export type Settings = {
   opacity: number;
   clickThrough: boolean;
   alwaysOnTop: boolean;
-  /** Leave the window out of screen shares, recordings and screenshots. */
-  hiddenFromCapture: boolean;
   /** Auto-hide the toolbar until the cursor reaches the top of the window. */
   compact: boolean;
   provider: ProviderId;
@@ -20,14 +18,10 @@ export type Settings = {
 };
 
 export const DEFAULT_SETTINGS: Settings = {
-  // Semi-transparent by default so whatever is behind the overlay stays
-  // readable through it.
-  opacity: 0.6,
+  // Slightly see-through so whatever is behind the overlay stays readable.
+  opacity: 0.8,
   clickThrough: false,
   alwaysOnTop: true,
-  // On by default: the overlay sits over whatever you are doing, so the safe
-  // default is for it not to leak into a share you start without thinking.
-  hiddenFromCapture: true,
   compact: false,
   provider: 'anthropic',
   models: {},

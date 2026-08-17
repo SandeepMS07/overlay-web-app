@@ -34,12 +34,12 @@ the server is up. Paste an API key in the 🔑 panel and ask a question.
 - **Present on every Space**, and `⌘⇧M` jumps it to whichever monitor your
   cursor is on. A window only ever lives on one physical display at a time, so
   multi-monitor is an explicit move rather than automatic.
-- **Excluded from screen capture** (on by default, `⌘⌥P` to toggle) — the
-  window is left out of screen shares, recordings and screenshots. See
+- **Always excluded from screen capture** — the window is left out of screen
+  shares, recordings and screenshots, with no toggle to switch it off. See
   [Screen-capture exclusion](#screen-capture-exclusion) for what that does and
   does not cover.
-- **See-through by default** — opacity starts at 60% so whatever is behind the
-  overlay stays readable. The slider goes from 20% to fully opaque.
+- **See-through** — opacity starts at 80% so whatever is behind the overlay
+  stays readable. The slider goes from 20% to fully opaque.
 - **Click-through mode** — the window goes ghost and your clicks land on the app
   underneath.
 - **Frameless and draggable** by its toolbar; resize from the bottom-right grip.
@@ -63,7 +63,6 @@ endpoint — a local model server, Azure OpenAI, OpenRouter.
 | `⌘⇧Y` / `Ctrl+Shift+Y` | Show / hide the overlay |
 | `⌘⇧C` / `Ctrl+Shift+C` | Toggle click-through |
 | `⌘⇧M` / `Ctrl+Shift+M` | Move the overlay to the screen your cursor is on |
-| `⌘⌥P` / `Ctrl+Alt+P` | Toggle exclusion from screen capture |
 | `⌘⇧↑` / `⌘⇧↓` | Opacity up / down |
 | `⌘⇧←` / `⌘⇧→` | Nudge the window left / right |
 | `Enter` | Send · `Shift+Enter` for a newline |
@@ -72,8 +71,11 @@ endpoint — a local model server, Azure OpenAI, OpenRouter.
 
 The overlay asks the OS window server to leave it out of captures
 (`setContentProtection`), which is the same mechanism password managers use to
-keep a vault out of a recording. It is **on by default**; the toolbar button and
-`⌘⌥P` toggle it, and the choice is remembered.
+keep a vault out of a recording. It is **always on**: there is deliberately no
+toggle, no tray item and no shortcut, so it cannot be switched off by accident.
+The flag is re-asserted whenever the window is shown, loses focus, or the
+display configuration changes, because macOS drops native window flags in all
+three cases.
 
 - **macOS** — `NSWindowSharingNone`. Honoured by ScreenCaptureKit and the older
   CGWindowList path, which is what Zoom, Meet, Teams, Slack, QuickTime and `⌘⇧5`
