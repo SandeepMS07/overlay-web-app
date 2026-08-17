@@ -5,7 +5,7 @@ export type OverlayState = {
   platform: NodeJS.Platform;
 };
 
-export type ShortcutAction = 'opacity-up' | 'opacity-down' | 'focus-chat';
+export type ShortcutAction = 'opacity-up' | 'opacity-down' | 'focus-chat' | 'dictate';
 
 export type OverlayBridge = {
   getState(): Promise<OverlayState>;
@@ -15,6 +15,8 @@ export type OverlayBridge = {
   setOpacity(value: number): Promise<number>;
   setBounds(bounds: Partial<{ x: number; y: number; width: number; height: number }>): Promise<unknown>;
   setSize(size: { width: number; height: number }): Promise<unknown>;
+  /** Resolves false when the OS microphone grant was refused. */
+  requestMicrophone(): Promise<boolean>;
   focusWindow(): void;
   moveToActiveDisplay(): void;
   hide(): void;

@@ -453,3 +453,28 @@ body {
   border-bottom: 2px solid rgba(255, 255, 255, 0.3);
   border-bottom-right-radius: 3px;
 }
+
+/* Recording indicator — the mic button pulses while the take is open, so it is
+   obvious the microphone is live even when the window is mostly transparent. */
+.btn.is-recording {
+  background: rgba(251, 113, 133, 0.18);
+  border-color: rgba(251, 113, 133, 0.5);
+  color: var(--danger);
+  animation: recording-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes recording-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn.is-recording {
+    animation: none;
+  }
+}

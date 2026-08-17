@@ -14,6 +14,7 @@ export default function OverlayApp() {
   const [barVisible, setBarVisible] = useState(true);
   const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null);
   const [focusToken, setFocusToken] = useState(0);
+  const [dictateToken, setDictateToken] = useState(0);
 
   const interactiveRef = useRef(true);
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -99,6 +100,10 @@ export default function OverlayApp() {
       if (action === 'focus-chat') {
         setBarVisible(true);
         setFocusToken((n) => n + 1);
+      }
+      if (action === 'dictate') {
+        setBarVisible(true);
+        setDictateToken((n) => n + 1);
       }
     });
   }, [setOpacity, settings.opacity]);
@@ -222,7 +227,13 @@ export default function OverlayApp() {
 
       <div className="body">
         {ready && (
-          <Chat settings={settings} update={update} focusToken={focusToken} notify={notify} />
+          <Chat
+            settings={settings}
+            update={update}
+            focusToken={focusToken}
+            dictateToken={dictateToken}
+            notify={notify}
+          />
         )}
       </div>
 

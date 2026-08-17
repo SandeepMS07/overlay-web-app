@@ -21,6 +21,9 @@ export const CloseIcon = wrap(
 export const TrashIcon = wrap(<path d="M9 3h6l1 2h4v2H4V5h4zM6 9h12l-1 12H7z" />);
 export const SendIcon = wrap(<path d="M3 20V4l18 8zm2-3 10-5L5 7v3.5l6 1.5-6 1.5z" />);
 export const StopIcon = wrap(<path d="M6 6h12v12H6z" />);
+export const MicIcon = wrap(
+  <path d="M12 3a3 3 0 013 3v6a3 3 0 01-6 0V6a3 3 0 013-3zM5 11h2a5 5 0 0010 0h2a7 7 0 01-6 6.9V21h-2v-3.1A7 7 0 015 11z" />
+);
 export const KeyIcon = wrap(
   <path d="M14 3a6 6 0 00-5.7 8L3 16.3V21h4.7l1.4-1.4V18h1.6l1.4-1.4v-1.7h1.2A6 6 0 1014 3zm2.4 5.2a1.6 1.6 0 110-3.2 1.6 1.6 0 010 3.2z" />
 );

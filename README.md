@@ -24,6 +24,8 @@ the server is up. Paste an API key in the 🔑 panel and ask a question.
 - **Bring your own key** for **Claude**, **ChatGPT**, or **Gemini** — whichever
   you have. Switch providers from the key panel at any time.
 - **Streams answers** token by token, with a stop button mid-answer.
+- **Ask by voice** — `⌘⌥S` records the default microphone, transcribes it, and
+  sends the question without you typing. See [Speech to text](#speech-to-text).
 - **`⌘⇧A` from any app** reveals the overlay with the caret already in the
   question box.
 - **Always on top**, above every app including full-screen VS Code, Chrome and
@@ -62,10 +64,39 @@ endpoint — a local model server, Azure OpenAI, OpenRouter.
 | `⌘⇧A` / `Ctrl+Shift+A` | Show the overlay and focus the question box |
 | `⌘⇧Y` / `Ctrl+Shift+Y` | Show / hide the overlay |
 | `⌘⇧C` / `Ctrl+Shift+C` | Toggle click-through |
+| `⌘⌥S` / `Ctrl+Alt+S` | Start / stop dictation |
 | `⌘⇧M` / `Ctrl+Shift+M` | Move the overlay to the screen your cursor is on |
 | `⌘⇧↑` / `⌘⇧↓` | Opacity up / down |
 | `⌘⇧←` / `⌘⇧→` | Nudge the window left / right |
 | `Enter` | Send · `Shift+Enter` for a newline |
+
+## Speech to text
+
+Press `⌘⌥S` from any app, or the mic button in the composer, and the overlay
+records until you press it again. The take is transcribed and sent as your next
+question — no typing.
+
+Recording uses `getUserMedia` with no device filter, so it follows whatever the
+OS has set as the **default input**: the built-in laptop microphone unless you
+have selected something else system-wide. The microphone is released after every
+take rather than held open between questions.
+
+**Dictation needs a ChatGPT key**, even if answers come from Claude or Gemini.
+Of the three providers, OpenAI's transcription endpoint is the only one that
+accepts the recorder's WebM/Opus audio directly — Gemini's inline-audio input
+takes wav/mp3/ogg/flac but not WebM, and Claude has no audio input at all.
+`OPENAI_TRANSCRIBE_MODEL` overrides the model (default `whisper-1`), and
+`OPENAI_BASE_URL` points it at a local Whisper server if you would rather not
+send audio anywhere.
+
+macOS asks for microphone permission the first time. If you refuse it, the grant
+lives in System Settings › Privacy & Security › Microphone.
+
+> **The mic indicator is not hidden.** While recording, macOS shows its orange
+> dot in the menu bar and Control Center. The overlay window is excluded from
+> screen capture; that indicator is not, and it is plainly visible to anyone
+> watching a share of your full screen. Recording other people may also need
+> their consent depending on where you are.
 
 ## Screen-capture exclusion
 
@@ -118,11 +149,14 @@ src/app/               Next.js App Router — the UI
 src/app/api/chat/      Streams a reply from the selected provider
 src/app/api/keys/      Stores API keys; reports presence, never values
 src/app/api/settings/  Window and provider preferences
+src/app/api/transcribe/ Speech to text for the dictation button
 src/lib/chat.ts        Per-provider streaming
 src/lib/providers.ts   Provider registry and defaults
 src/lib/secrets.ts     Key storage (0600, server-side only)
 src/lib/settings.ts    Settings shape + defaults, shared by client and server
 src/lib/store.ts       JSON persistence in the app's data directory
+src/lib/transcribe.ts  Audio -> text via OpenAI's transcription endpoint
+src/lib/useDictation.ts Microphone capture in the renderer
 scripts/               Icon generation + standalone server assembly
 ```
 

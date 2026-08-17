@@ -3,17 +3,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PROVIDER_IDS, PROVIDERS, type ChatMessage, type ProviderId } from '@/lib/providers';
 import type { Settings } from '@/lib/settings';
-import { CloseIcon, KeyIcon, SendIcon, StopIcon, TrashIcon } from '@/components/Icons';
+import { useDictation } from '@/lib/useDictation';
+import { CloseIcon, KeyIcon, MicIcon, SendIcon, StopIcon, TrashIcon } from '@/components/Icons';
 
 type Props = {
   settings: Settings;
   update: (patch: Partial<Settings>) => void;
   /** Bumping this focuses the composer — used by the global shortcut. */
   focusToken: number;
+  /** Bumping this starts or stops dictation — used by the global shortcut. */
+  dictateToken: number;
   notify: (text: string, error?: boolean) => void;
 };
 
-export default function Chat({ settings, update, focusToken, notify }: Props) {
+export default function Chat({ settings, update, focusToken, dictateToken, notify }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [streaming, setStreaming] = useState(false);
@@ -62,8 +65,13 @@ export default function Chat({ settings, update, focusToken, notify }: Props) {
 
   // -------------------------------------------------------------- sending
 
-  const send = useCallback(async () => {
-    const text = draft.trim();
+  /**
+   * `override` lets dictation send its transcript directly. Going through the
+   * draft state instead would send a stale value, because setDraft has not
+   * committed by the time this runs.
+   */
+  const send = useCallback(async (override?: string) => {
+    const text = (override ?? draft).trim();
     if (!text || streaming) return;
 
     const next: ChatMessage[] = [...messages, { role: 'user', content: text }];
@@ -143,6 +151,20 @@ export default function Chat({ settings, update, focusToken, notify }: Props) {
   }, [draft, messages, notify, provider, settings.models, streaming]);
 
   const stop = useCallback(() => abortRef.current?.abort(), []);
+
+  // ------------------------------------------------------------- dictation
+
+  const dictation = useDictation({
+    onText: (text) => void send(text),
+    onError: (message) => notify(message, true),
+  });
+
+  // Fired by ⌘⌥S from any app. The token only ever increases, so this runs once
+  // per press rather than on every re-render.
+  useEffect(() => {
+    if (dictateToken > 0) dictation.toggle();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dictateToken]);
 
   const saveKey = useCallback(async () => {
     const key = keyDraft.trim();
@@ -287,7 +309,15 @@ export default function Chat({ settings, update, focusToken, notify }: Props) {
           className="composer-input"
           value={draft}
           rows={1}
-          placeholder={hasKey ? 'Ask a question…' : 'Add an API key to start'}
+          placeholder={
+            dictation.state === 'recording'
+              ? 'Listening… ⌘⌥S or the mic button to stop'
+              : dictation.state === 'transcribing'
+                ? 'Transcribing…'
+                : hasKey
+                  ? 'Ask a question, or press ⌘⌥S to speak…'
+                  : 'Add an API key to start'
+          }
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -300,6 +330,18 @@ export default function Chat({ settings, update, focusToken, notify }: Props) {
         />
 
         <div className="composer-actions">
+          <button
+            className={`btn${dictation.state === 'recording' ? ' is-recording' : ''}`}
+            onClick={dictation.toggle}
+            disabled={streaming || dictation.state === 'transcribing'}
+            title={
+              dictation.state === 'recording'
+                ? 'Stop and send (⌘⌥S)'
+                : 'Ask by voice — records the default microphone (⌘⌥S)'
+            }
+          >
+            <MicIcon />
+          </button>
           <button
             className={`btn${keysOpen ? ' is-active' : ''}`}
             onClick={() => setKeysOpen((v) => !v)}

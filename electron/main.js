@@ -19,7 +19,9 @@ const {
   ipcMain,
   globalShortcut,
   screen,
+  session,
   shell,
+  systemPreferences,
   Tray,
   Menu,
   nativeImage,
@@ -399,6 +401,38 @@ function createTray() {
 }
 
 // --------------------------------------------------------------------------
+// Microphone
+// --------------------------------------------------------------------------
+
+/**
+ * The renderer's getUserMedia call goes through Chromium's permission layer,
+ * which in Electron denies everything unless a handler says otherwise. Only
+ * audio is ever allowed — nothing here grants camera or geolocation.
+ */
+function configurePermissions() {
+  const allowed = new Set(['media', 'audioCapture']);
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(allowed.has(permission));
+  });
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => allowed.has(permission));
+}
+
+/**
+ * macOS gates the microphone at the OS level too, separately from Chromium.
+ * askForMediaAccess shows the system prompt the first time and resolves against
+ * the stored answer afterwards.
+ */
+async function requestMicrophone() {
+  if (process.platform !== 'darwin') return true;
+  if (systemPreferences.getMediaAccessStatus('microphone') === 'granted') return true;
+  try {
+    return await systemPreferences.askForMediaAccess('microphone');
+  } catch {
+    return false;
+  }
+}
+
+// --------------------------------------------------------------------------
 // Shortcuts
 // --------------------------------------------------------------------------
 
@@ -420,6 +454,14 @@ function registerShortcuts() {
     win.show();
     win.focus();
     win.webContents.send('overlay:shortcut', 'focus-chat');
+  });
+
+  // Start/stop dictation from anywhere. Alt rather than Shift on purpose: a
+  // global shortcut outranks every app, and Cmd+Shift+S is Save As.
+  bind('CommandOrControl+Alt+S', () => {
+    if (!win) return;
+    win.show();
+    win.webContents.send('overlay:shortcut', 'dictate');
   });
 
   bind('CommandOrControl+Shift+Up', () => win?.webContents.send('overlay:shortcut', 'opacity-up'));
@@ -490,6 +532,8 @@ function registerIpc() {
     if (win && !win.isDestroyed() && !clickThrough) win.focus();
   });
 
+  ipcMain.handle('overlay:request-microphone', () => requestMicrophone());
+
   ipcMain.on('overlay:move-to-active-display', moveToActiveDisplay);
 
   ipcMain.on('overlay:hide', () => win?.hide());
@@ -523,6 +567,7 @@ if (!gotLock) {
       app.quit();
       return;
     }
+    configurePermissions();
     registerIpc();
     createWindow();
     createTray();

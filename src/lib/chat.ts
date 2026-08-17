@@ -205,7 +205,7 @@ function safeJson<T>(text: string): T | null {
   }
 }
 
-async function describeHttpError(res: Response, label: string): Promise<string> {
+export async function describeHttpError(res: Response, label: string): Promise<string> {
   const body = await res.text().catch(() => '');
   const message = safeJson<{ error?: { message?: string } }>(body)?.error?.message;
   if (res.status === 401 || res.status === 403) {

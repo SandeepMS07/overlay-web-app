@@ -41,6 +41,9 @@ mac:
     # Required before macOS will let the app capture or overlay other windows
     # in some configurations, and keeps the overlay out of Mission Control.
     NSHighResolutionCapable: true
+    # Without this key macOS kills the app the moment it touches the mic,
+    # rather than showing a prompt. The text is what the prompt displays.
+    NSMicrophoneUsageDescription: Overlay Player records your voice so you can ask questions by speaking instead of typing.
 
 dmg:
   title: Overlay Player
