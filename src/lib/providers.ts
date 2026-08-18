@@ -32,7 +32,7 @@ export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
   gemini: {
     id: 'gemini',
     label: 'Gemini',
-    defaultModel: 'gemini-2.0-flash',
+    defaultModel: 'gemini-3.7-flash',
     keyUrl: 'https://aistudio.google.com/apikey',
     keyHint: 'AIza…',
   },
