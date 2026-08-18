@@ -2,7 +2,7 @@
   "name": "overlay-player",
   "productName": "Overlay Player",
   "version": "1.0.0",
-  "description": "A floating, always-on-top YouTube overlay for macOS and Windows. Next.js UI + API in one Electron app.",
+  "description": "A floating, always-on-top AI assistant for macOS and Windows. Next.js UI + API in one Electron app.",
   "main": "electron/main.js",
   "private": true,
   "author": "Sandeep M S",
@@ -31,6 +31,7 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "typescript": "^5.9.3",
+    "unpdf": "^1.8.1",
     "wait-on": "^9.1.0"
   }
 }

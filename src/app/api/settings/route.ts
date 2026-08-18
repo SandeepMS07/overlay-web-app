@@ -19,6 +19,7 @@ export async function PATCH(request: Request) {
   if (typeof body.clickThrough === 'boolean') patch.clickThrough = body.clickThrough;
   if (typeof body.alwaysOnTop === 'boolean') patch.alwaysOnTop = body.alwaysOnTop;
   if (typeof body.compact === 'boolean') patch.compact = body.compact;
+  if (typeof body.webSearch === 'boolean') patch.webSearch = body.webSearch;
   if (isProviderId(body.provider)) patch.provider = body.provider;
   if (body.models && typeof body.models === 'object') {
     const models: Partial<Record<ProviderId, string>> = {};

@@ -16,8 +16,30 @@ type StreamOptions = {
   apiKey: string;
   model: string;
   messages: ChatMessage[];
+  /** Rendered reference documents, prepended to the system prompt. */
+  documents?: string;
+  /** Let the model search the web before answering. */
+  webSearch?: boolean;
   signal?: AbortSignal;
 };
+
+const WEB_SEARCH_NOTE =
+  'You can search the web. Do so when the question depends on current information ' +
+  'or on anything you are not sure of, and name the source in your answer.';
+
+function systemPrompt(opts: StreamOptions): string {
+  return [SYSTEM_PROMPT, opts.webSearch ? WEB_SEARCH_NOTE : '', opts.documents ?? '']
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+/**
+ * OpenAI's regular chat models cannot search at all — web search lives either in
+ * the Responses API or in these dedicated Chat Completions models, which always
+ * search before answering. Swapping the model keeps the streaming path that is
+ * already in use here rather than introducing a second response format.
+ */
+const OPENAI_SEARCH_MODEL = process.env.OPENAI_SEARCH_MODEL || 'gpt-5-search-api';
 
 // ---------------------------------------------------------------- Anthropic
 
@@ -31,9 +53,12 @@ async function* runAnthropic(opts: StreamOptions, withFallbacks: boolean): Async
   const params = {
     model: opts.model,
     max_tokens: MAX_TOKENS,
-    system: SYSTEM_PROMPT,
+    system: systemPrompt(opts),
     messages: opts.messages.map((m) => ({ role: m.role, content: m.content })),
     output_config: { effort: 'low' },
+    // Server-side tool: Anthropic runs the search, so there is no tool loop to
+    // implement here. Non-text blocks in the stream are simply not yielded.
+    ...(opts.webSearch ? { tools: [{ type: 'web_search_20260209', name: 'web_search' }] } : {}),
     // Claude's safety classifiers can decline a request outright; the server-side
     // fallback re-runs it on another model instead of returning nothing.
     ...(withFallbacks ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' } : {}),
@@ -119,10 +144,10 @@ async function* streamOpenAI(opts: StreamOptions): AsyncGenerator<string> {
       Authorization: `Bearer ${opts.apiKey}`,
     },
     body: JSON.stringify({
-      model: opts.model,
+      model: opts.webSearch ? OPENAI_SEARCH_MODEL : opts.model,
       stream: true,
       max_completion_tokens: MAX_TOKENS,
-      messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...opts.messages],
+      messages: [{ role: 'system', content: systemPrompt(opts) }, ...opts.messages],
     }),
   });
 
@@ -148,7 +173,8 @@ async function* streamGemini(opts: StreamOptions): AsyncGenerator<string> {
     signal: opts.signal,
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': opts.apiKey },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      systemInstruction: { parts: [{ text: systemPrompt(opts) }] },
+      ...(opts.webSearch ? { tools: [{ google_search: {} }] } : {}),
       // Gemini calls the assistant role "model".
       contents: opts.messages.map((m) => ({
         role: m.role === 'assistant' ? 'model' : 'user',

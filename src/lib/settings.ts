@@ -12,6 +12,8 @@ export type Settings = {
   alwaysOnTop: boolean;
   /** Auto-hide the toolbar until the cursor reaches the top of the window. */
   compact: boolean;
+  /** Let the model search the web before answering. */
+  webSearch: boolean;
   provider: ProviderId;
   /** Per-provider model override; blank falls back to the provider default. */
   models: Partial<Record<ProviderId, string>>;
@@ -23,6 +25,9 @@ export const DEFAULT_SETTINGS: Settings = {
   clickThrough: false,
   alwaysOnTop: true,
   compact: false,
+  // Off by default: searching costs more and adds latency, and most questions
+  // in a scratch overlay do not need it.
+  webSearch: false,
   provider: 'anthropic',
   models: {},
 };

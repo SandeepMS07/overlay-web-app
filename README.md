@@ -24,6 +24,10 @@ the server is up. Paste an API key in the 🔑 panel and ask a question.
 - **Bring your own key** for **Claude**, **ChatGPT**, or **Gemini** — whichever
   you have. Switch providers from the key panel at any time.
 - **Streams answers** token by token, with a stop button mid-answer.
+- **Your own documents** — attach a CV, a brief or notes and the assistant
+  answers from them. See [Documents](#documents).
+- **Web search** — a globe toggle in the composer lets the model look things up
+  before answering. See [Web search](#web-search).
 - **Ask by voice** — `⌘⌥S` records the default microphone, transcribes it, and
   sends the question without you typing. See [Speech to text](#speech-to-text).
 - **`⌘⇧A` from any app** reveals the overlay with the caret already in the
@@ -69,6 +73,46 @@ endpoint — a local model server, Azure OpenAI, OpenRouter.
 | `⌘⇧↑` / `⌘⇧↓` | Opacity up / down |
 | `⌘⇧←` / `⌘⇧→` | Nudge the window left / right |
 | `Enter` | Send · `Shift+Enter` for a newline |
+
+## Documents
+
+The 📄 button in the composer opens the document panel. Add a PDF or a plain
+text file (`.txt`, `.md`, `.csv`, `.json`) and its text is extracted **once, at
+upload**, then stored alongside your settings. Every question after that carries
+the documents as context, so you can ask "what did I do at my last job" and get
+an answer from your own CV.
+
+- PDFs are parsed with `unpdf`, a serverless build of pdf.js — no worker setup
+  and nothing native to compile. A scanned PDF with no selectable text is
+  rejected with a message saying so rather than silently contributing nothing.
+- `.doc`/`.docx` are **not** supported; export to PDF first.
+- Each document is capped at 40k characters and the whole set at 80k, so a large
+  library cannot blow the context window.
+
+Two things worth knowing. The documents are sent **in full with every question**,
+so a large CV is paid for on every turn — remove what you are not using. And the
+extracted text sits unencrypted in the app's data directory, next to
+`settings.json`; treat it like any other file in your home directory.
+
+## Web search
+
+The 🌐 toggle in the composer lets the model search before answering. It is off
+by default, since searching costs more and adds latency. Each provider does this
+differently:
+
+| Provider | How |
+| --- | --- |
+| Claude | The `web_search_20260209` server tool — Anthropic runs the search, so there is no tool loop here |
+| Gemini | The `google_search` grounding tool |
+| ChatGPT | **Swaps the model** to `gpt-5-search-api` for that request |
+
+That last row is the awkward one. OpenAI's ordinary chat models cannot search at
+all — search lives either in the Responses API or in dedicated Chat Completions
+search models. Swapping the model keeps the streaming path the rest of the app
+already uses instead of introducing a second response format, but it does mean
+your chosen OpenAI model is ignored while the toggle is on, and those models
+always search rather than deciding whether to. `OPENAI_SEARCH_MODEL` overrides
+which one is used.
 
 ## Speech to text
 
@@ -148,9 +192,11 @@ electron/preload.js    The only bridge to the renderer (contextIsolation on)
 src/app/               Next.js App Router — the UI
 src/app/api/chat/      Streams a reply from the selected provider
 src/app/api/keys/      Stores API keys; reports presence, never values
+src/app/api/docs/      Reference documents: add, list, remove
 src/app/api/settings/  Window and provider preferences
 src/app/api/transcribe/ Speech to text for the dictation button
-src/lib/chat.ts        Per-provider streaming
+src/lib/chat.ts        Per-provider streaming, web search, document context
+src/lib/docs.ts        Document storage and text extraction
 src/lib/providers.ts   Provider registry and defaults
 src/lib/secrets.ts     Key storage (0600, server-side only)
 src/lib/settings.ts    Settings shape + defaults, shared by client and server

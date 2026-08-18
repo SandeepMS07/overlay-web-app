@@ -4,7 +4,19 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { PROVIDER_IDS, PROVIDERS, type ChatMessage, type ProviderId } from '@/lib/providers';
 import type { Settings } from '@/lib/settings';
 import { useDictation } from '@/lib/useDictation';
-import { CloseIcon, KeyIcon, MicIcon, SendIcon, StopIcon, TrashIcon } from '@/components/Icons';
+// Type-only: lib/docs.ts is server-side and pulls in node:fs at runtime.
+import type { DocMeta } from '@/lib/docs';
+import {
+  CloseIcon,
+  DocIcon,
+  GlobeIcon,
+  KeyIcon,
+  MicIcon,
+  PlusIcon,
+  SendIcon,
+  StopIcon,
+  TrashIcon,
+} from '@/components/Icons';
 
 type Props = {
   settings: Settings;
@@ -24,8 +36,12 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
   const [configured, setConfigured] = useState<ProviderId[]>([]);
   const [keysOpen, setKeysOpen] = useState(false);
   const [keyDraft, setKeyDraft] = useState('');
+  const [docs, setDocs] = useState<DocMeta[]>([]);
+  const [docsOpen, setDocsOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -47,6 +63,59 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
   useEffect(() => {
     void refreshKeys();
   }, [refreshKeys]);
+
+  // ------------------------------------------------------------- documents
+
+  const refreshDocs = useCallback(async () => {
+    try {
+      const res = await fetch('/api/docs');
+      const data = (await res.json()) as { docs?: DocMeta[] };
+      setDocs(data.docs ?? []);
+    } catch {
+      /* the panel still opens; uploading will report the real error */
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshDocs();
+  }, [refreshDocs]);
+
+  const uploadDocs = useCallback(
+    async (files: FileList | null) => {
+      if (!files || files.length === 0) return;
+      const form = new FormData();
+      for (const file of Array.from(files)) form.append('file', file);
+
+      setUploading(true);
+      try {
+        const res = await fetch('/api/docs', { method: 'POST', body: form });
+        const data = (await res.json().catch(() => ({}))) as {
+          docs?: DocMeta[];
+          error?: string;
+          warning?: string;
+        };
+        if (data.docs) setDocs(data.docs);
+        if (!res.ok) notify(data.error ?? 'Could not add that file.', true);
+        else if (data.warning) notify(data.warning, true);
+        else notify(files.length === 1 ? 'Document added.' : `${files.length} documents added.`);
+      } catch {
+        notify('Could not reach the local backend.', true);
+      } finally {
+        setUploading(false);
+      }
+    },
+    [notify]
+  );
+
+  const deleteDoc = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`/api/docs?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const data = (await res.json()) as { docs?: DocMeta[] };
+      setDocs(data.docs ?? []);
+    } catch {
+      /* leave the list as-is; the next open re-reads it */
+    }
+  }, []);
 
   // Open the key panel automatically the first time a provider has no key.
   useEffect(() => {
@@ -93,6 +162,7 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
           provider,
           model: settings.models?.[provider] ?? '',
           messages: next,
+          webSearch: settings.webSearch,
         }),
       });
 
@@ -148,7 +218,7 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
       setPartial('');
       setStreaming(false);
     }
-  }, [draft, messages, notify, provider, settings.models, streaming]);
+  }, [draft, messages, notify, provider, settings.models, settings.webSearch, streaming]);
 
   const stop = useCallback(() => abortRef.current?.abort(), []);
 
@@ -221,6 +291,65 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
         {partial && <Bubble role="assistant" content={partial} />}
         {streaming && !partial && <div className="chat-thinking">Thinking…</div>}
       </div>
+
+      {docsOpen && (
+        <div className="keys">
+          <div className="keys-row">
+            <strong className="keys-title">Documents</strong>
+            <span className="spacer" />
+            <button
+              className="btn"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              title="Add a PDF or text file"
+            >
+              <PlusIcon />
+              {uploading ? 'Reading…' : 'Add'}
+            </button>
+            <button className="btn" onClick={() => setDocsOpen(false)} title="Close">
+              <CloseIcon />
+            </button>
+          </div>
+
+          <input
+            ref={fileRef}
+            className="hidden-file"
+            type="file"
+            multiple
+            accept=".pdf,.txt,.md,.markdown,.csv,.json,.log,application/pdf,text/*"
+            onChange={(e) => {
+              void uploadDocs(e.target.files);
+              e.target.value = '';
+            }}
+          />
+
+          {docs.length === 0 ? (
+            <p className="keys-note">
+              Add a CV, a project brief or notes, and the assistant will use them when
+              answering. Text is read once when you add the file — PDFs and plain text.
+            </p>
+          ) : (
+            <ul className="doc-list">
+              {docs.map((doc) => (
+                <li key={doc.id} className="doc-item">
+                  <DocIcon />
+                  <span className="doc-name" title={doc.name}>
+                    {doc.name}
+                  </span>
+                  <span className="doc-size">{Math.max(1, Math.round(doc.chars / 1000))}k</span>
+                  <button
+                    className="btn is-danger"
+                    onClick={() => void deleteDoc(doc.id)}
+                    title="Remove"
+                  >
+                    <TrashIcon />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {keysOpen && (
         <div className="keys">
@@ -343,6 +472,28 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
             <MicIcon />
           </button>
           <button
+            className={`btn${settings.webSearch ? ' is-active' : ''}`}
+            onClick={() => update({ webSearch: !settings.webSearch })}
+            title={
+              settings.webSearch
+                ? 'Web search on — the model can look things up'
+                : 'Web search off — answers from the model only'
+            }
+          >
+            <GlobeIcon />
+          </button>
+          <button
+            className={`btn${docsOpen ? ' is-active' : ''}`}
+            onClick={() => {
+              setDocsOpen((v) => !v);
+              void refreshDocs();
+            }}
+            title={docs.length ? `${docs.length} document(s) in context` : 'Add documents'}
+          >
+            <DocIcon />
+            {docs.length > 0 && <span className="badge">{docs.length}</span>}
+          </button>
+                    <button
             className={`btn${keysOpen ? ' is-active' : ''}`}
             onClick={() => setKeysOpen((v) => !v)}
             title={`${PROVIDERS[provider].label} · key and model`}

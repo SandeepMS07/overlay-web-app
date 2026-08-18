@@ -1,4 +1,5 @@
 import { isAbort, streamChat } from '@/lib/chat';
+import { docsContext } from '@/lib/docs';
 import { isProviderId, PROVIDERS, type ChatMessage } from '@/lib/providers';
 import { getKey } from '@/lib/secrets';
 
@@ -9,6 +10,7 @@ type ChatRequest = {
   provider?: string;
   model?: string;
   messages?: ChatMessage[];
+  webSearch?: boolean;
 };
 
 /**
@@ -36,6 +38,10 @@ export async function POST(request: Request) {
   }
 
   const model = (body.model || '').trim() || PROVIDERS[body.provider].defaultModel;
+  // Read once per turn rather than per token. An unreadable docs directory must
+  // not take the whole answer down, so failures fall back to no context.
+  const documents = await docsContext().catch(() => '');
+  const webSearch = body.webSearch === true;
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream<Uint8Array>({
@@ -48,6 +54,8 @@ export async function POST(request: Request) {
           apiKey,
           model,
           messages,
+          documents,
+          webSearch,
           signal: request.signal,
         })) {
           send({ type: 'delta', text });

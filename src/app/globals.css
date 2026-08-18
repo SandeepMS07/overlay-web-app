@@ -478,3 +478,66 @@ body {
     animation: none;
   }
 }
+
+/* ------------------------------------------------------------- documents */
+
+.hidden-file {
+  display: none;
+}
+
+.keys-title {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.doc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  max-height: 150px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.doc-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 4px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 12px;
+}
+
+.doc-item svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  fill: var(--text-dim);
+}
+
+/* The name is the only part allowed to shrink, so a long filename truncates
+   instead of pushing the delete button out of the panel. */
+.doc-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.doc-size {
+  flex: none;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.badge {
+  margin-left: 3px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
