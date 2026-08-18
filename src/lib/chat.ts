@@ -173,15 +173,44 @@ async function* streamOpenAI(
   }
 }
 
+/** The models actually present on this machine, for use in error messages. */
+async function installedModels(): Promise<string[]> {
+  try {
+    const res = await fetch(`${LOCAL_BASE.replace(/\/v1\/?$/, '')}/api/tags`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { models?: { name?: string }[] };
+    return (data.models ?? []).map((m) => m.name ?? '').filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 async function* streamLocal(opts: StreamOptions): AsyncGenerator<string> {
   try {
     yield* streamOpenAI({ ...opts, webSearch: false }, LOCAL_BASE, 'Ollama');
   } catch (err) {
-    // A refused connection here means the daemon is not up, which is by far the
-    // most common local failure and deserves better than "fetch failed".
-    if (err instanceof TypeError || (err as Error)?.message?.includes('fetch failed')) {
-      throw new Error('No local model server on ' + LOCAL_BASE + '. Start it with: ollama serve');
+    const message = (err as Error)?.message ?? '';
+
+    // A refused connection means the daemon is not up, which is by far the most
+    // common local failure and deserves better than "fetch failed".
+    if (err instanceof TypeError || message.includes('fetch failed')) {
+      throw new Error(`No local model server on ${LOCAL_BASE}. Start it with: ollama serve`);
     }
+
+    // "unknown model" is the other common one, and it usually means the pull has
+    // not finished rather than that the name is wrong — so say what is actually
+    // installed instead of leaving the user to guess.
+    if (message.includes('does not recognise that model name')) {
+      const have = await installedModels();
+      throw new Error(
+        `Ollama has no model named "${opts.model}". ` +
+          (have.length ? `Installed: ${have.join(', ')}. ` : 'Nothing is installed yet. ') +
+          `Pull it with: ollama pull ${opts.model}`
+      );
+    }
+
     throw err;
   }
 }
