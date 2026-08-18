@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server';
-import { DocError, addDoc, listDocs, removeDoc } from '@/lib/docs';
+import { DocError, addDoc, listDocs, reindexAll, removeDoc } from '@/lib/docs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   return NextResponse.json({ docs: await listDocs() });
+}
+
+export async function PUT() {
+  // Re-chunk and re-embed everything; used after a chunking or model change.
+  return NextResponse.json({ docs: await reindexAll() });
 }
 
 export async function POST(request: Request) {

@@ -137,11 +137,25 @@ an answer from your own CV.
 ### Retrieval
 
 If `nomic-embed-text` is available through Ollama, documents are **chunked and
-embedded at upload** (1200-character windows, 200 overlap — the overlap matters,
-or a fact straddling a boundary is cut in half and matches nothing). At question
-time the question itself is embedded and the eight closest passages are sent,
-rather than whole documents. That is what makes many or large documents
-practical.
+embedded at upload**, and at question time the question is embedded and the five
+closest passages are sent rather than whole documents. That is what makes many
+or large documents practical.
+
+**Chunk on meaning, not on character count.** Blocks are split at blank lines and
+packed whole; a block longer than the target is split at sentence ends. Fixed
+1200-character windows were tried first and were measurably worse: a window over
+a Q&A document merges several unrelated answers, and the one vector that results
+represents all of them and therefore none of them well. On a factual-lookup test
+the fixed-window version failed to retrieve the right passage at all for
+"how many users did X serve" — the correct chunk was not even in the top five.
+After switching to block boundaries the same test found the answer in the top
+five for **7 of 7** questions, and end-to-end answers went from wrong to **7/7
+correct**.
+
+Changing the chunking or the embedding model invalidates every stored vector —
+old and new vectors are not comparable, and mixing them degrades ranking
+silently rather than failing. `PUT /api/docs` re-chunks and re-embeds everything
+from the stored text.
 
 Embedding is strictly an optimisation here: if the daemon is not running, upload
 still works and the documents are sent whole. You lose relevance, not function.

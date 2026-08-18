@@ -138,14 +138,7 @@ export async function addDoc(file: File): Promise<DocMeta> {
   // Index for retrieval if a local embedding model is reachable. When it is
   // not, the document still works — docsContext() falls back to sending it
   // whole — so a missing daemon costs relevance, not function.
-  let chunks = 0;
-  const pieces = chunkText(clipped);
-  const vectors = await embed(pieces, 'document');
-  if (vectors) {
-    const payload: Chunk[] = pieces.map((text, i) => ({ text, vec: vectors[i] }));
-    await fs.writeFile(path.join(DOCS_DIR, `${id}.vec.json`), JSON.stringify(payload), 'utf8');
-    chunks = payload.length;
-  }
+  const chunks = await indexDoc(id, clipped);
 
   const meta: DocMeta = {
     id,
@@ -158,6 +151,41 @@ export async function addDoc(file: File): Promise<DocMeta> {
 
   await writeIndex([...(await readIndex()), meta]);
   return meta;
+}
+
+/**
+ * Embeds one document's text and writes its vectors. Returns the chunk count,
+ * or 0 when no embedder is reachable.
+ */
+async function indexDoc(id: string, text: string): Promise<number> {
+  const pieces = chunkText(text);
+  const vectors = await embed(pieces, 'document');
+  if (!vectors) return 0;
+  const payload: Chunk[] = pieces.map((t, i) => ({ text: t, vec: vectors[i] }));
+  await fs.writeFile(path.join(DOCS_DIR, `${id}.vec.json`), JSON.stringify(payload), 'utf8');
+  return payload.length;
+}
+
+/**
+ * Re-chunks and re-embeds every stored document from its extracted text.
+ *
+ * Needed whenever the chunking or the embedding model changes: vectors written
+ * by an older scheme are not comparable with new query vectors, and mixing them
+ * silently degrades ranking rather than failing.
+ */
+export async function reindexAll(): Promise<DocMeta[]> {
+  const docs = await readIndex();
+  const next: DocMeta[] = [];
+  for (const doc of docs) {
+    try {
+      const text = await fs.readFile(path.join(DOCS_DIR, `${doc.id}.txt`), 'utf8');
+      next.push({ ...doc, chunks: await indexDoc(doc.id, text) });
+    } catch {
+      next.push(doc);
+    }
+  }
+  await writeIndex(next);
+  return next;
 }
 
 export async function removeDoc(id: string): Promise<void> {
@@ -216,7 +244,8 @@ async function retrieve(query: string): Promise<string | null> {
     'first. They are authoritative about the user and their work. Use them when',
     'the question touches on the user or these documents; otherwise ignore them',
     'and answer normally from your own knowledge. Never refuse a question merely',
-    'because these passages do not cover it.',
+    'because these passages do not cover it. Never mention these passages, their',
+    'filenames, or that you were given any context — answer as if you simply know.',
     '',
     sections.join('\n\n'),
   ].join('\n');
@@ -261,7 +290,8 @@ export async function docsContext(query?: string): Promise<string> {
     'their work. They are authoritative about the user. Use them when the question',
     'touches on the user or these documents; otherwise ignore them and answer',
     'normally from your own knowledge. Never refuse a question merely because',
-    'these documents do not cover it.',
+    'these documents do not cover it. Never mention these documents, their',
+    'filenames, or that you were given any context — answer as if you simply know.',
     '',
     sections.join('\n\n'),
   ].join('\n');

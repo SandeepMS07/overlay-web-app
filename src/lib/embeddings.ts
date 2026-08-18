@@ -73,19 +73,50 @@ export function cosine(a: number[], b: number[]): number {
 }
 
 /**
- * Splits text into overlapping windows. The overlap matters: a fact that
- * straddles a boundary would otherwise be cut in half and match nothing.
+ * Splits text for embedding.
+ *
+ * Boundaries are semantic, not positional: the text is broken into blocks on
+ * blank lines and blocks are packed into chunks whole. Fixed-width windows were
+ * measurably worse — a 1200-character window over a Q&A document merges several
+ * unrelated answers, and the single vector that results represents all of them
+ * and therefore none of them well. One topic per chunk is what makes retrieval
+ * discriminate.
+ *
+ * A block longer than `size` is split on sentence ends as a fallback, since a
+ * single runaway paragraph must not become an unbounded chunk.
  */
-export function chunkText(text: string, size = 1200, overlap = 200): string[] {
-  const clean = text.replace(/\s+\n/g, '\n').trim();
-  if (clean.length <= size) return clean ? [clean] : [];
+export function chunkText(text: string, size = 600): string[] {
+  const clean = text.replace(/\r\n/g, '\n').trim();
+  if (!clean) return [];
 
+  const blocks = clean.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
   const chunks: string[] = [];
-  const stride = Math.max(1, size - overlap);
-  for (let start = 0; start < clean.length; start += stride) {
-    const piece = clean.slice(start, start + size).trim();
-    if (piece) chunks.push(piece);
-    if (start + size >= clean.length) break;
+  let current = '';
+
+  const push = () => {
+    if (current.trim()) chunks.push(current.trim());
+    current = '';
+  };
+
+  for (const block of blocks) {
+    if (block.length > size) {
+      push();
+      // Oversized block: fall back to sentence-boundary splitting.
+      let piece = '';
+      for (const sentence of block.split(/(?<=[.!?])\s+/)) {
+        if (piece && piece.length + sentence.length > size) {
+          chunks.push(piece.trim());
+          piece = '';
+        }
+        piece += (piece ? ' ' : '') + sentence;
+      }
+      if (piece.trim()) chunks.push(piece.trim());
+      continue;
+    }
+    if (current && current.length + block.length > size) push();
+    current += (current ? '\n\n' : '') + block;
   }
+  push();
+
   return chunks;
 }
