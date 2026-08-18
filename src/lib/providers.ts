@@ -31,7 +31,7 @@ export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
   openai: {
     id: 'openai',
     label: 'ChatGPT',
-    defaultModel: 'gpt-4o',
+    defaultModel: 'gpt-5.6-terra',
     keyUrl: 'https://platform.openai.com/api-keys',
     keyHint: 'sk-…',
     requiresKey: true,

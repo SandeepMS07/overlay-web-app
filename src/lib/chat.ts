@@ -287,7 +287,10 @@ function safeJson<T>(text: string): T | null {
 
 export async function describeHttpError(res: Response, label: string): Promise<string> {
   const body = await res.text().catch(() => '');
-  const message = safeJson<{ error?: { message?: string } }>(body)?.error?.message;
+  const parsed = safeJson<{ error?: { message?: string; code?: string; type?: string } }>(body);
+  const message = parsed?.error?.message;
+  const code = parsed?.error?.code ?? parsed?.error?.type ?? '';
+
   if (res.status === 401 || res.status === 403) {
     return `${label} rejected the API key (${res.status}). Check it in settings.`;
   }
@@ -295,6 +298,11 @@ export async function describeHttpError(res: Response, label: string): Promise<s
     return `${label} does not recognise that model name.`;
   }
   if (res.status === 429) {
+    // An exhausted balance also comes back as 429, but "wait a moment" is the
+    // wrong advice for it — no amount of waiting adds credit.
+    if (/insufficient_quota|billing|credit/i.test(`${code} ${message ?? ''}`)) {
+      return `Your ${label} account is out of credit. Add billing on the provider's dashboard, or switch to a local model.`;
+    }
     return `${label} rate limit reached. Wait a moment and try again.`;
   }
   return message ? `${label}: ${message}` : `${label} request failed (${res.status}).`;
