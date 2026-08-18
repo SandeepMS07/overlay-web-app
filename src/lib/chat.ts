@@ -20,15 +20,37 @@ type StreamOptions = {
   documents?: string;
   /** Let the model search the web before answering. */
   webSearch?: boolean;
+  /** Apply the hard length ceiling; used for local models. */
+  brief?: boolean;
+  /**
+   * Passed straight through to the endpoint. Ollama uses it to switch a
+   * reasoning model's thinking off — 'none' is the only value that works, and
+   * `think: false` / `chat_template_kwargs` are both ignored there.
+   */
+  reasoningEffort?: string;
   signal?: AbortSignal;
 };
+
+/**
+ * Local models are chattier than the hosted ones and ignore a general "be
+ * brief" hint, so they get an explicit ceiling. Headings and rules are banned
+ * because they waste vertical space in a window a few hundred pixels tall.
+ */
+const BREVITY_NOTE =
+  'Answer in at most 120 words unless the user asks for more. Never use headings, ' +
+  'horizontal rules, or bold section titles — plain sentences and, at most, a short list.';
 
 const WEB_SEARCH_NOTE =
   'You can search the web. Do so when the question depends on current information ' +
   'or on anything you are not sure of, and name the source in your answer.';
 
 function systemPrompt(opts: StreamOptions): string {
-  return [SYSTEM_PROMPT, opts.webSearch ? WEB_SEARCH_NOTE : '', opts.documents ?? '']
+  return [
+    SYSTEM_PROMPT,
+    opts.brief ? BREVITY_NOTE : '',
+    opts.webSearch ? WEB_SEARCH_NOTE : '',
+    opts.documents ?? '',
+  ]
     .filter(Boolean)
     .join('\n\n');
 }
@@ -159,6 +181,7 @@ async function* streamOpenAI(
       model: opts.webSearch ? OPENAI_SEARCH_MODEL : opts.model,
       stream: true,
       max_completion_tokens: MAX_TOKENS,
+      ...(opts.reasoningEffort ? { reasoning_effort: opts.reasoningEffort } : {}),
       messages: [{ role: 'system', content: systemPrompt(opts) }, ...opts.messages],
     }),
   });
@@ -189,7 +212,16 @@ async function installedModels(): Promise<string[]> {
 
 async function* streamLocal(opts: StreamOptions): AsyncGenerator<string> {
   try {
-    yield* streamOpenAI({ ...opts, webSearch: false }, LOCAL_BASE, 'Ollama');
+    yield* streamOpenAI(
+      // No reasoning_effort override. On a reasoning model such as qwen3,
+      // asking Ollama to switch thinking off does not remove the reasoning —
+      // it moves it out of the hidden field and into the visible answer, which
+      // is measurably worse. Left alone, thinking stays hidden; the real fix
+      // for latency is to point this at an instruct model that does not reason.
+      { ...opts, webSearch: false, brief: true },
+      LOCAL_BASE,
+      'Ollama'
+    );
   } catch (err) {
     const message = (err as Error)?.message ?? '';
 

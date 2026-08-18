@@ -556,8 +556,13 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
 }
 
 /**
- * Renders a message, giving fenced code blocks a monospace block of their own.
- * Everything else is plain text with preserved wrapping.
+ * Renders a message as light markdown.
+ *
+ * Deliberately hand-rolled rather than pulling in a markdown library: the
+ * subset that actually shows up in short chat answers is small, and a parser
+ * plus a sanitiser would be a large dependency shipped into an overlay. Only
+ * these constructs are understood — anything else renders as the literal text
+ * the model wrote, which is the safe failure.
  */
 function Bubble({ role, content }: { role: ChatMessage['role']; content: string }) {
   const segments = content.split(/```/);
@@ -570,9 +575,132 @@ function Bubble({ role, content }: { role: ChatMessage['role']; content: string 
             <code>{segment.replace(/^[a-zA-Z0-9+-]*\n/, '')}</code>
           </pre>
         ) : (
-          segment && <span key={index}>{segment}</span>
+          <Markdown key={index} text={segment} />
         )
       )}
     </div>
+  );
+}
+
+/** Block-level markdown: headings, list items, rules, paragraphs. */
+function Markdown({ text }: { text: string }) {
+  if (!text.trim()) return null;
+
+  const lines = text.split('\n');
+  const blocks: React.ReactNode[] = [];
+  let list: string[] = [];
+  let para: string[] = [];
+
+  const flushList = () => {
+    if (list.length === 0) return;
+    const items = list;
+    list = [];
+    blocks.push(
+      <ul key={`u${blocks.length}`} className="md-list">
+        {items.map((item, i) => (
+          <li key={i}>
+            <Inline text={item} />
+          </li>
+        ))}
+      </ul>
+    );
+  };
+
+  const flushPara = () => {
+    if (para.length === 0) return;
+    const joined = para.join(' ');
+    para = [];
+    blocks.push(
+      <p key={`p${blocks.length}`} className="md-p">
+        <Inline text={joined} />
+      </p>
+    );
+  };
+
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+
+    if (!line.trim()) {
+      flushList();
+      flushPara();
+      continue;
+    }
+    // A horizontal rule would just eat vertical space in a small window.
+    if (/^\s*([-*_])\s*\1\s*\1[\s\-*_]*$/.test(line)) {
+      flushList();
+      flushPara();
+      continue;
+    }
+
+    const heading = /^\s*(#{1,6})\s+(.*)$/.exec(line);
+    if (heading) {
+      flushList();
+      flushPara();
+      // Every heading level renders the same: the window is too small for a
+      // type scale to mean anything.
+      blocks.push(
+        <p key={`h${blocks.length}`} className="md-h">
+          <Inline text={heading[2]} />
+        </p>
+      );
+      continue;
+    }
+
+    const bullet = /^\s*(?:[-*•]|\d+[.)])\s+(.*)$/.exec(line);
+    if (bullet) {
+      flushPara();
+      list.push(bullet[1]);
+      continue;
+    }
+
+    flushList();
+    para.push(line.trim());
+  }
+
+  flushList();
+  flushPara();
+  return <>{blocks}</>;
+}
+
+/** Inline markdown: `code`, **bold**, *italic*, and bare links. */
+function Inline({ text }: { text: string }) {
+  // One pass over alternating delimiters; the capture groups line up with the
+  // branches below, so the split result can be walked without re-parsing.
+  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*|\*[^*\n]+\*|https?:\/\/\S+)/g);
+
+  return (
+    <>
+      {parts.map((part, i) => {
+        if (!part) return null;
+        if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
+          return (
+            <code key={i} className="md-code">
+              {part.slice(1, -1)}
+            </code>
+          );
+        }
+        if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+          return <strong key={i}>{part.slice(2, -2)}</strong>;
+        }
+        if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+          return <em key={i}>{part.slice(1, -1)}</em>;
+        }
+        if (/^https?:\/\//.test(part)) {
+          return (
+            <a
+              key={i}
+              href={part}
+              onClick={(e) => {
+                e.preventDefault();
+                window.overlay?.openExternal(part);
+              }}
+            >
+              {part}
+            </a>
+          );
+        }
+        return <span key={i}>{part}</span>;
+      })}
+    </>
   );
 }

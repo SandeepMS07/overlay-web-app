@@ -49,8 +49,10 @@ export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
   local: {
     id: 'local',
     label: 'Local',
-    // Whatever you have pulled — `ollama list` prints the valid names.
-    defaultModel: 'qwen3:30b-a3b',
+    // An instruct model on purpose. A reasoning model such as qwen3:30b-a3b
+    // spends ~13s thinking before the first visible character, which defeats
+    // the point of an overlay. `ollama list` prints what you have pulled.
+    defaultModel: 'gemma3:12b',
     keyUrl: 'https://ollama.com/library',
     keyHint: 'no key needed',
     requiresKey: false,

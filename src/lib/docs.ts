@@ -30,7 +30,15 @@ export type DocMeta = {
 type Chunk = { text: string; vec: number[] };
 
 /** How many retrieved passages to send when retrieval is available. */
-const TOP_K = 8;
+const TOP_K = 5;
+
+/**
+ * Retrieval gets a much smaller budget than the whole-document fallback. Every
+ * character here is prompt the model must read before it can start answering,
+ * and on a local model that is seconds of latency — the point of retrieving is
+ * to send less, not to fill the same 80k with better-chosen text.
+ */
+const RETRIEVAL_CHARS = 6000;
 
 /** Per-document ceiling, so one huge file cannot crowd out the others. */
 const MAX_DOC_CHARS = 40_000;
@@ -195,7 +203,7 @@ async function retrieve(query: string): Promise<string | null> {
   scored.sort((a, b) => b.score - a.score);
 
   const sections: string[] = [];
-  let budget = MAX_CONTEXT_CHARS;
+  let budget = RETRIEVAL_CHARS;
   for (const hit of scored.slice(0, TOP_K)) {
     if (budget <= 0) break;
     const slice = hit.text.slice(0, budget);

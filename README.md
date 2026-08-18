@@ -89,10 +89,20 @@ It needs [Ollama](https://ollama.com) and at least one pulled model:
 
 ```bash
 ollama serve                     # start the daemon
-ollama pull qwen3:30b-a3b        # ~19 GB, the chat model
+ollama pull gemma3:12b           # ~8 GB, the default chat model
 ollama pull nomic-embed-text     # ~274 MB, for document retrieval
 ollama list                      # the names you can type in the model field
 ```
+
+**Pick an instruct model, not a reasoning one.** This matters more than size. A
+reasoning model such as `qwen3:30b-a3b` spends its first ~750 tokens thinking
+before writing a visible character — measured at **13.2s to the first character
+and 29.6s total**, against **4s and 6s** for `gemma3:12b`. And you cannot switch
+that off: Ollama's `think: false`, `reasoning_effort: "none"` and Qwen's
+`/no_think` were all tried, and each either kept thinking or moved the reasoning
+*into the visible answer*, which is worse. Reasoning models are a good choice
+when you want a considered answer and can wait; they are the wrong choice for an
+overlay.
 
 No code change was needed for the chat side: Ollama speaks the OpenAI
 chat-completions dialect, so the local provider is the same streaming code
