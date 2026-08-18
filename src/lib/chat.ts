@@ -135,8 +135,20 @@ function describeAnthropicError(err: unknown): string {
  */
 const OPENAI_BASE = process.env.OPENAI_BASE_URL?.replace(/\/+$/, '') || 'https://api.openai.com/v1';
 
-async function* streamOpenAI(opts: StreamOptions): AsyncGenerator<string> {
-  const res = await fetch(`${OPENAI_BASE}/chat/completions`, {
+/**
+ * Ollama speaks the OpenAI chat-completions dialect, so a local model needs a
+ * different base URL rather than a different implementation. It ignores the
+ * Authorization header, but the header has to be present.
+ */
+export const LOCAL_BASE =
+  process.env.OLLAMA_BASE_URL?.replace(/\/+$/, '') || 'http://127.0.0.1:11434/v1';
+
+async function* streamOpenAI(
+  opts: StreamOptions,
+  base = OPENAI_BASE,
+  label = 'OpenAI'
+): AsyncGenerator<string> {
+  const res = await fetch(`${base}/chat/completions`, {
     method: 'POST',
     signal: opts.signal,
     headers: {
@@ -151,13 +163,26 @@ async function* streamOpenAI(opts: StreamOptions): AsyncGenerator<string> {
     }),
   });
 
-  if (!res.ok || !res.body) throw new Error(await describeHttpError(res, 'OpenAI'));
+  if (!res.ok || !res.body) throw new Error(await describeHttpError(res, label));
 
   for await (const data of sseData(res.body)) {
     if (data === '[DONE]') return;
     const delta = safeJson<{ choices?: { delta?: { content?: string } }[] }>(data)?.choices?.[0]
       ?.delta?.content;
     if (delta) yield delta;
+  }
+}
+
+async function* streamLocal(opts: StreamOptions): AsyncGenerator<string> {
+  try {
+    yield* streamOpenAI({ ...opts, webSearch: false }, LOCAL_BASE, 'Ollama');
+  } catch (err) {
+    // A refused connection here means the daemon is not up, which is by far the
+    // most common local failure and deserves better than "fetch failed".
+    if (err instanceof TypeError || (err as Error)?.message?.includes('fetch failed')) {
+      throw new Error('No local model server on ' + LOCAL_BASE + '. Start it with: ollama serve');
+    }
+    throw err;
   }
 }
 
@@ -253,5 +278,6 @@ export function isAbort(err: unknown): boolean {
 export function streamChat(provider: ProviderId, opts: StreamOptions): AsyncGenerator<string> {
   if (provider === 'anthropic') return streamAnthropic(opts);
   if (provider === 'openai') return streamOpenAI(opts);
+  if (provider === 'local') return streamLocal(opts);
   return streamGemini(opts);
 }

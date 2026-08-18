@@ -7,6 +7,7 @@ import { useDictation } from '@/lib/useDictation';
 // Type-only: lib/docs.ts is server-side and pulls in node:fs at runtime.
 import type { DocMeta } from '@/lib/docs';
 import {
+  ChipIcon,
   CloseIcon,
   DocIcon,
   GlobeIcon,
@@ -46,7 +47,15 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
   const abortRef = useRef<AbortController | null>(null);
 
   const provider = settings.provider;
-  const hasKey = configured.includes(provider);
+  const info = PROVIDERS[provider];
+  const hasKey = !info.requiresKey || configured.includes(provider);
+  const isLocal = info.offline;
+
+  /** Flip between the local model and whichever cloud provider was last used. */
+  const toggleLocal = useCallback(() => {
+    if (isLocal) update({ provider: settings.cloudProvider });
+    else update({ cloudProvider: provider, provider: 'local' });
+  }, [isLocal, provider, settings.cloudProvider, update]);
 
   // ------------------------------------------------------------- key status
 
@@ -383,6 +392,7 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
             />
           </label>
 
+          {info.requiresKey && (
           <label className="keys-field">
             <span>API key</span>
             <input
@@ -406,6 +416,7 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
               </button>
             )}
           </label>
+          )}
 
           <label className="keys-field keys-check">
             <input
@@ -417,8 +428,10 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
           </label>
 
           <p className="keys-note">
-            Stored locally in this app&apos;s data folder, readable only by your user account, and
-            sent only to {PROVIDERS[provider].label}.{' '}
+            {isLocal
+              ? 'Runs on this machine through Ollama. Nothing leaves your computer, and no key is needed. '
+              : "Stored locally in this app's data folder, readable only by your user account, and sent only to " +
+                PROVIDERS[provider].label + '. '}
             <a
               href={PROVIDERS[provider].keyUrl}
               onClick={(e) => {
@@ -426,7 +439,7 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
                 window.overlay?.openExternal(PROVIDERS[provider].keyUrl);
               }}
             >
-              Get a key
+              {isLocal ? 'Browse models' : 'Get a key'}
             </a>
           </p>
         </div>
@@ -472,12 +485,26 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
             <MicIcon />
           </button>
           <button
-            className={`btn${settings.webSearch ? ' is-active' : ''}`}
-            onClick={() => update({ webSearch: !settings.webSearch })}
+            className={`btn${isLocal ? ' is-active' : ''}`}
+            onClick={toggleLocal}
             title={
-              settings.webSearch
-                ? 'Web search on — the model can look things up'
-                : 'Web search off — answers from the model only'
+              isLocal
+                ? `Running locally on this machine — click to go back to ${PROVIDERS[settings.cloudProvider].label}`
+                : 'Run the model on this machine instead (offline)'
+            }
+          >
+            <ChipIcon />
+          </button>
+          <button
+            className={`btn${settings.webSearch && !isLocal ? ' is-active' : ''}`}
+            onClick={() => update({ webSearch: !settings.webSearch })}
+            disabled={isLocal}
+            title={
+              isLocal
+                ? 'A local model has no internet access'
+                : settings.webSearch
+                  ? 'Web search on — the model can look things up'
+                  : 'Web search off — answers from the model only'
             }
           >
             <GlobeIcon />

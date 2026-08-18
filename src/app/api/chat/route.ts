@@ -40,8 +40,12 @@ export async function POST(request: Request) {
   const model = (body.model || '').trim() || PROVIDERS[body.provider].defaultModel;
   // Read once per turn rather than per token. An unreadable docs directory must
   // not take the whole answer down, so failures fall back to no context.
-  const documents = await docsContext().catch(() => '');
-  const webSearch = body.webSearch === true;
+  // The latest user turn is the retrieval query — retrieval is about what was
+  // just asked, not the whole conversation.
+  const query = [...messages].reverse().find((m) => m.role === 'user')?.content ?? '';
+  const documents = await docsContext(query).catch(() => '');
+  // A local model has no internet, so the flag is meaningless there.
+  const webSearch = body.webSearch === true && !PROVIDERS[body.provider].offline;
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream<Uint8Array>({

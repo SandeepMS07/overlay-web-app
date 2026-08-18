@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { chunkText, cosine, embed } from '@/lib/embeddings';
 
 /**
  * Reference documents the assistant can draw on — a CV, a project brief, notes.
@@ -21,7 +22,15 @@ export type DocMeta = {
   /** Length of the extracted text, which is what actually reaches the model. */
   chars: number;
   addedAt: string;
+  /** How many embedded chunks exist; 0 means this document is stuffed whole. */
+  chunks?: number;
 };
+
+/** One embedded passage. */
+type Chunk = { text: string; vec: number[] };
+
+/** How many retrieved passages to send when retrieval is available. */
+const TOP_K = 8;
 
 /** Per-document ceiling, so one huge file cannot crowd out the others. */
 const MAX_DOC_CHARS = 40_000;
@@ -118,12 +127,25 @@ export async function addDoc(file: File): Promise<DocMeta> {
   await fs.mkdir(DOCS_DIR, { recursive: true });
   await fs.writeFile(path.join(DOCS_DIR, `${id}.txt`), clipped, 'utf8');
 
+  // Index for retrieval if a local embedding model is reachable. When it is
+  // not, the document still works — docsContext() falls back to sending it
+  // whole — so a missing daemon costs relevance, not function.
+  let chunks = 0;
+  const pieces = chunkText(clipped);
+  const vectors = await embed(pieces, 'document');
+  if (vectors) {
+    const payload: Chunk[] = pieces.map((text, i) => ({ text, vec: vectors[i] }));
+    await fs.writeFile(path.join(DOCS_DIR, `${id}.vec.json`), JSON.stringify(payload), 'utf8');
+    chunks = payload.length;
+  }
+
   const meta: DocMeta = {
     id,
     name: file.name,
     bytes: file.size,
     chars: clipped.length,
     addedAt: new Date().toISOString(),
+    chunks,
   };
 
   await writeIndex([...(await readIndex()), meta]);
@@ -136,15 +158,73 @@ export async function removeDoc(id: string): Promise<void> {
   if (next.length === docs.length) return;
   await writeIndex(next);
   await fs.rm(path.join(DOCS_DIR, `${id}.txt`), { force: true });
+  await fs.rm(path.join(DOCS_DIR, `${id}.vec.json`), { force: true });
 }
 
 // ------------------------------------------------------------------- context
 
 /**
- * The documents rendered for the system prompt, oldest first and truncated at
+ * Retrieval: embed the question, score every stored chunk against it, and keep
+ * the closest few. Returns null when nothing is indexed or the embedder is
+ * unreachable, which tells docsContext to fall back to sending whole documents.
+ */
+async function retrieve(query: string): Promise<string | null> {
+  const docs = await readIndex();
+  const indexed = docs.filter((doc) => (doc.chunks ?? 0) > 0);
+  if (indexed.length === 0) return null;
+
+  const queryVec = (await embed([query], 'query'))?.[0];
+  if (!queryVec) return null;
+
+  const scored: { name: string; text: string; score: number }[] = [];
+  for (const doc of indexed) {
+    let chunks: Chunk[];
+    try {
+      chunks = JSON.parse(
+        await fs.readFile(path.join(DOCS_DIR, `${doc.id}.vec.json`), 'utf8')
+      ) as Chunk[];
+    } catch {
+      continue;
+    }
+    for (const chunk of chunks) {
+      scored.push({ name: doc.name, text: chunk.text, score: cosine(queryVec, chunk.vec) });
+    }
+  }
+  if (scored.length === 0) return null;
+
+  scored.sort((a, b) => b.score - a.score);
+
+  const sections: string[] = [];
+  let budget = MAX_CONTEXT_CHARS;
+  for (const hit of scored.slice(0, TOP_K)) {
+    if (budget <= 0) break;
+    const slice = hit.text.slice(0, budget);
+    budget -= slice.length;
+    sections.push(`<passage from="${hit.name}">\n${slice}\n</passage>`);
+  }
+
+  return [
+    'Passages retrieved from the user\'s own documents, most relevant first.',
+    'Treat them as authoritative about the user. If they do not cover what was',
+    'asked, say so plainly rather than guessing.',
+    '',
+    sections.join('\n\n'),
+  ].join('\n');
+}
+
+/**
+ * The documents rendered for the system prompt.
+ *
+ * With a query and a reachable embedder this retrieves only the relevant
+ * passages; otherwise it sends the documents whole, oldest first, truncated at
  * MAX_CONTEXT_CHARS so a large library cannot blow the context window.
  */
-export async function docsContext(): Promise<string> {
+export async function docsContext(query?: string): Promise<string> {
+  if (query?.trim()) {
+    const retrieved = await retrieve(query).catch(() => null);
+    if (retrieved) return retrieved;
+  }
+
   const docs = await readIndex();
   if (docs.length === 0) return '';
 

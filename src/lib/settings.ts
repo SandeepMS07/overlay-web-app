@@ -15,6 +15,8 @@ export type Settings = {
   /** Let the model search the web before answering. */
   webSearch: boolean;
   provider: ProviderId;
+  /** The cloud provider to return to when the offline switch is turned off. */
+  cloudProvider: ProviderId;
   /** Per-provider model override; blank falls back to the provider default. */
   models: Partial<Record<ProviderId, string>>;
 };
@@ -29,5 +31,6 @@ export const DEFAULT_SETTINGS: Settings = {
   // in a scratch overlay do not need it.
   webSearch: false,
   provider: 'anthropic',
+  cloudProvider: 'anthropic',
   models: {},
 };

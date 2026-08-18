@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { ProviderId } from '@/lib/providers';
+import { PROVIDERS, PROVIDER_IDS, type ProviderId } from '@/lib/providers';
 
 /**
  * API keys live in their own file, separate from settings.json, written with
@@ -40,6 +40,9 @@ async function writeKeys(keys: KeyStore): Promise<void> {
 
 /** The raw key for a provider — server-side only. Never return this to the UI. */
 export async function getKey(provider: ProviderId): Promise<string | null> {
+  // Local models authenticate against nothing; the caller still needs a string
+  // so the Authorization header is well-formed.
+  if (!PROVIDERS[provider].requiresKey) return 'local';
   const fromEnv = process.env[`${provider.toUpperCase()}_API_KEY`];
   if (fromEnv) return fromEnv;
   return (await readKeys())[provider] ?? null;
@@ -66,8 +69,9 @@ export async function configuredProviders(): Promise<ProviderId[]> {
   for (const [id, value] of Object.entries(keys)) {
     if (value) ids.add(id as ProviderId);
   }
-  for (const id of ['anthropic', 'openai', 'gemini'] as ProviderId[]) {
-    if (process.env[`${id.toUpperCase()}_API_KEY`]) ids.add(id);
+  for (const id of PROVIDER_IDS) {
+    // A keyless provider is always "configured" — there is nothing to set up.
+    if (!PROVIDERS[id].requiresKey || process.env[`${id.toUpperCase()}_API_KEY`]) ids.add(id);
   }
   return [...ids];
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { isProviderId, PROVIDER_IDS, type ProviderId } from '@/lib/providers';
+import { isProviderId, PROVIDERS, PROVIDER_IDS, type ProviderId } from '@/lib/providers';
 import type { Settings } from '@/lib/settings';
 import { getSettings, saveSettings } from '@/lib/store';
 
@@ -21,6 +21,11 @@ export async function PATCH(request: Request) {
   if (typeof body.compact === 'boolean') patch.compact = body.compact;
   if (typeof body.webSearch === 'boolean') patch.webSearch = body.webSearch;
   if (isProviderId(body.provider)) patch.provider = body.provider;
+  // Only a cloud provider can be the fallback, or the toggle would flip local
+  // to local and appear stuck.
+  if (isProviderId(body.cloudProvider) && !PROVIDERS[body.cloudProvider].offline) {
+    patch.cloudProvider = body.cloudProvider;
+  }
   if (body.models && typeof body.models === 'object') {
     const models: Partial<Record<ProviderId, string>> = {};
     for (const id of PROVIDER_IDS) {

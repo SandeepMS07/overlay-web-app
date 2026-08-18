@@ -17,15 +17,20 @@ npm run dev
 ```
 
 `npm run dev` starts `next dev` on port 3000 and opens the Electron overlay once
-the server is up. Paste an API key in the 🔑 panel and ask a question.
+the server is up. Paste an API key in the 🔑 panel and ask a question — or skip
+the key entirely and [run a model locally](#running-locally). Set `PORT` if
+something else already owns 3000.
 
 ## What it does
 
 - **Bring your own key** for **Claude**, **ChatGPT**, or **Gemini** — whichever
   you have. Switch providers from the key panel at any time.
 - **Streams answers** token by token, with a stop button mid-answer.
+- **Runs offline** — a switch in the composer moves answering to a model on
+  your own machine via Ollama. See [Running locally](#running-locally).
 - **Your own documents** — attach a CV, a brief or notes and the assistant
-  answers from them. See [Documents](#documents).
+  answers from them, retrieving only the relevant passages. See
+  [Documents](#documents).
 - **Web search** — a globe toggle in the composer lets the model look things up
   before answering. See [Web search](#web-search).
 - **Ask by voice** — `⌘⌥S` records the default microphone, transcribes it, and
@@ -74,6 +79,36 @@ endpoint — a local model server, Azure OpenAI, OpenRouter.
 | `⌘⇧←` / `⌘⇧→` | Nudge the window left / right |
 | `Enter` | Send · `Shift+Enter` for a newline |
 
+## Running locally
+
+The 🔌 button in the composer switches between a cloud provider and a model
+running on this machine. Nothing leaves your computer in local mode, no API key
+is involved, and it works with the network unplugged.
+
+It needs [Ollama](https://ollama.com) and at least one pulled model:
+
+```bash
+ollama serve                     # start the daemon
+ollama pull qwen3:30b-a3b        # ~19 GB, the chat model
+ollama pull nomic-embed-text     # ~274 MB, for document retrieval
+ollama list                      # the names you can type in the model field
+```
+
+No code change was needed for the chat side: Ollama speaks the OpenAI
+chat-completions dialect, so the local provider is the same streaming code
+pointed at `http://127.0.0.1:11434/v1`. `OLLAMA_BASE_URL` moves it elsewhere.
+
+**Sizing.** On Apple Silicon, CPU and GPU share one pool of memory, so unified
+memory is the ceiling. A 4-bit quantised model costs roughly **0.6 GB per
+billion parameters**; leave ~16 GB for the OS and your apps. A mixture-of-experts
+model such as `qwen3:30b-a3b` activates only ~3B parameters per token, so it
+answers far faster than a dense model of the same file size — which is what you
+want in an overlay.
+
+**What local mode gives up:** web search is disabled (the toggle greys out —
+a local model has no internet), and dictation still calls OpenAI, since Ollama
+does not serve audio transcription. A local Whisper server would close that gap.
+
 ## Documents
 
 The 📄 button in the composer opens the document panel. Add a PDF or a plain
@@ -89,10 +124,30 @@ an answer from your own CV.
 - Each document is capped at 40k characters and the whole set at 80k, so a large
   library cannot blow the context window.
 
-Two things worth knowing. The documents are sent **in full with every question**,
-so a large CV is paid for on every turn — remove what you are not using. And the
-extracted text sits unencrypted in the app's data directory, next to
-`settings.json`; treat it like any other file in your home directory.
+### Retrieval
+
+If `nomic-embed-text` is available through Ollama, documents are **chunked and
+embedded at upload** (1200-character windows, 200 overlap — the overlap matters,
+or a fact straddling a boundary is cut in half and matches nothing). At question
+time the question itself is embedded and the eight closest passages are sent,
+rather than whole documents. That is what makes many or large documents
+practical.
+
+Embedding is strictly an optimisation here: if the daemon is not running, upload
+still works and the documents are sent whole. You lose relevance, not function.
+
+Measured on a 21-question retrieval check against this app's own document
+format: **81% top-1, 90% top-3**. Since eight passages are sent, a document that
+ranks third is still in the answer. Worth knowing the failure mode — questions
+whose wording shares no vocabulary with the passage ("what motorcycle do I ride"
+against a passage naming only the model of bike) are where a small embedding
+model misses.
+
+Two things worth knowing. Document context is re-sent **on every question** —
+retrieved passages when embeddings are available, whole documents otherwise — so
+it is paid for on every turn; remove what you are not using. And the extracted
+text and its vectors sit unencrypted in the app's data directory, next to
+`settings.json`; treat them like any other file in your home directory.
 
 ## Web search
 
@@ -196,7 +251,8 @@ src/app/api/docs/      Reference documents: add, list, remove
 src/app/api/settings/  Window and provider preferences
 src/app/api/transcribe/ Speech to text for the dictation button
 src/lib/chat.ts        Per-provider streaming, web search, document context
-src/lib/docs.ts        Document storage and text extraction
+src/lib/docs.ts        Document storage, text extraction, retrieval
+src/lib/embeddings.ts  Local embeddings and cosine similarity via Ollama
 src/lib/providers.ts   Provider registry and defaults
 src/lib/secrets.ts     Key storage (0600, server-side only)
 src/lib/settings.ts    Settings shape + defaults, shared by client and server
@@ -210,7 +266,12 @@ scripts/               Icon generation + standalone server assembly
 with the server, and importing `store.ts` from a client component would drag
 `node:fs` into the browser bundle and fail the build.
 
-**In development**, Electron attaches to `next dev` on port 3000.
+**In development**, Electron attaches to `next dev` on port 3000. Set `PORT` to
+move both halves together if something else already has that port:
+
+```bash
+PORT=3010 npm run dev
+```
 
 **In production**, `next build` runs with `output: 'standalone'`, producing a
 self-contained `server.js`. `scripts/prepare-server.mjs` combines it with the

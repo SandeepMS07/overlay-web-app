@@ -8,8 +8,8 @@
   "author": "Sandeep M S",
   "license": "MIT",
   "scripts": {
-    "dev": "concurrently -k -n next,electron -c cyan,magenta \"next dev -p 3000\" \"wait-on tcp:127.0.0.1:3000 && node scripts/start-electron.mjs\"",
-    "dev:web": "next dev -p 3000",
+    "dev": "concurrently -k -n next,electron -c cyan,magenta \"next dev -p ${PORT:-3000}\" \"wait-on tcp:127.0.0.1:${PORT:-3000} && node scripts/start-electron.mjs\"",
+    "dev:web": "next dev -p ${PORT:-3000}",
     "build": "next build && node scripts/prepare-server.mjs",
     "icons": "node scripts/make-icons.mjs",
     "start": "node scripts/start-electron.mjs",
