@@ -28,6 +28,10 @@ export const MicIcon = wrap(
 export const ChipIcon = wrap(
   <path d="M9 2h1.6v2H13V2h1.6v2H16a2 2 0 012 2v1.4h2V9h-2v2.2h2v1.6h-2V15h2v1.6h-2V18a2 2 0 01-2 2h-1.4v2H13v-2h-2.4v2H9v-2H8a2 2 0 01-2-2v-1.4H4V15h2v-2.2H4v-1.6h2V9H4V7.4h2V6a2 2 0 012-2h1zM8 6v12h8V6zm2 2h4v4h-4z" />
 );
+/** Ear: always-on listening, as distinct from push-to-talk. */
+export const EarIcon = wrap(
+  <path d="M12 2a6 6 0 00-6 6h2.4a3.6 3.6 0 117.2 0c0 1.6-.9 2.5-2.1 3.5-1.3 1.1-2.7 2.4-2.7 4.7V18h2.4v-1.8c0-1.2.7-1.8 1.8-2.8 1.4-1.2 3-2.7 3-5.4a6 6 0 00-6-6zm-.6 18h2.4v2.2h-2.4z" />
+);
 export const GlobeIcon = wrap(
   <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm6.9 9h-3a15.7 15.7 0 00-1.4-6 8 8 0 014.4 6zM12 4.1A13.6 13.6 0 0113.9 11h-3.8A13.6 13.6 0 0112 4.1zM4.1 11a8 8 0 014.4-6 15.7 15.7 0 00-1.4 6zm0 2h3a15.7 15.7 0 001.4 6 8 8 0 01-4.4-6zm5.9 0h3.8A13.6 13.6 0 0112 19.9 13.6 13.6 0 0110.1 13zm5.5 6a15.7 15.7 0 001.4-6h3a8 8 0 01-4.4 6z" />
 );

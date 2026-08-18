@@ -115,9 +115,8 @@ model such as `qwen3:30b-a3b` activates only ~3B parameters per token, so it
 answers far faster than a dense model of the same file size — which is what you
 want in an overlay.
 
-**What local mode gives up:** web search is disabled (the toggle greys out —
-a local model has no internet), and dictation still calls OpenAI, since Ollama
-does not serve audio transcription. A local Whisper server would close that gap.
+**What local mode gives up:** web search only. A local model has no internet, so
+that toggle greys out. Speech to text is local too — see below.
 
 ## Documents
 
@@ -195,8 +194,54 @@ which one is used.
 
 ## Speech to text
 
-Press `⌘⌥S` from any app, or the mic button in the composer, and the overlay
-records until you press it again. The take is transcribed and sent as your next
+### Listening continuously
+
+The 👂 button listens until you turn it off, transcribing each utterance and
+answering it. It is meant for a meeting, where the questions come from someone
+else rather than from you typing.
+
+Segments are cut by **voice activity**, not by a timer: the hook watches input
+level and closes a segment after ~900ms of quiet. Cutting on a fixed interval
+would slice sentences in half, and half a sentence transcribes badly. Utterances
+shorter than 600ms are dropped as coughs and keystrokes, and anything still
+running at 20s is cut anyway so a monologue is not held forever.
+
+Audio is captured as raw PCM through the Web Audio API rather than through
+MediaRecorder, because the same samples serve both jobs — measuring loudness for
+the detector, and building the 16 kHz mono WAV that Whisper wants. Noise
+suppression is deliberately **off**: it is tuned for a close talker and eats the
+quieter, further-away speech this is supposed to pick up.
+
+An answer already streaming is not interrupted by the next utterance; the new
+text lands in the composer instead, so two replies never interleave.
+
+> Recording other people can require their consent, and the rules differ by
+> jurisdiction. That is worth knowing before you leave this running in a meeting.
+
+### Running speech to text locally
+
+Transcription tries a local whisper.cpp server first and only falls back to
+OpenAI if nothing is listening on it. Local means no API credit and no one
+else's voice leaving the machine.
+
+```bash
+brew install whisper-cpp
+mkdir -p ~/.whisper-models && curl -L -o ~/.whisper-models/ggml-small.en.bin \
+  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin
+npm run stt        # serves an OpenAI-shaped endpoint on 127.0.0.1:8178
+```
+
+`whisper-server` is not OpenAI-compatible by default; `--request-path /v1
+--inference-path /audio/transcriptions` is what makes its route match, and its
+`{"text": ...}` response already matches. `WHISPER_BASE_URL` moves it.
+
+Measured: 0.31s to transcribe a 2.3s clip through the app, against an account
+that no longer has credit for the hosted API.
+
+### Push to talk
+
+Press `⌘⌥S` from any app, or the 🎤 button, and the overlay records until you
+press it again — this one is for dictating your own question. The take is transcribed and sent as your next
 question — no typing.
 
 Recording uses `getUserMedia` with no device filter, so it follows whatever the
@@ -204,9 +249,9 @@ OS has set as the **default input**: the built-in laptop microphone unless you
 have selected something else system-wide. The microphone is released after every
 take rather than held open between questions.
 
-**Dictation needs a ChatGPT key**, even if answers come from Claude or Gemini.
-Of the three providers, OpenAI's transcription endpoint is the only one that
-accepts the recorder's WebM/Opus audio directly — Gemini's inline-audio input
+Without a local whisper server, dictation needs a **ChatGPT key** even when
+answers come from Claude or Gemini: of the hosted providers only OpenAI's
+transcription endpoint accepts this audio directly — Gemini's inline-audio input
 takes wav/mp3/ogg/flac but not WebM, and Claude has no audio input at all.
 `OPENAI_TRANSCRIBE_MODEL` overrides the model (default `whisper-1`), and
 `OPENAI_BASE_URL` points it at a local Whisper server if you would rather not

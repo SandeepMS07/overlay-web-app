@@ -4,12 +4,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { PROVIDER_IDS, PROVIDERS, type ChatMessage, type ProviderId } from '@/lib/providers';
 import type { Settings } from '@/lib/settings';
 import { useDictation } from '@/lib/useDictation';
+import { useListening } from '@/lib/useListening';
 // Type-only: lib/docs.ts is server-side and pulls in node:fs at runtime.
 import type { DocMeta } from '@/lib/docs';
 import {
   ChipIcon,
   CloseIcon,
   DocIcon,
+  EarIcon,
   GlobeIcon,
   KeyIcon,
   MicIcon,
@@ -230,6 +232,26 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
   }, [draft, messages, notify, provider, settings.models, settings.webSearch, streaming]);
 
   const stop = useCallback(() => abortRef.current?.abort(), []);
+
+  // ------------------------------------------------------------- listening
+
+  /**
+   * Continuous listening. Each finished utterance is answered on its own; the
+   * send is skipped while an answer is still streaming, so a follow-up spoken
+   * over the top does not interleave two replies.
+   */
+  const streamingRef = useRef(false);
+  useEffect(() => {
+    streamingRef.current = streaming;
+  }, [streaming]);
+
+  const listening = useListening({
+    onUtterance: (text) => {
+      setDraft(text);
+      if (!streamingRef.current) void send(text);
+    },
+    onError: (message) => notify(message, true),
+  });
 
   // ------------------------------------------------------------- dictation
 
@@ -452,7 +474,13 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
           value={draft}
           rows={1}
           placeholder={
-            dictation.state === 'recording'
+            listening.listening
+              ? listening.speaking
+                ? 'Hearing speech…'
+                : listening.busy
+                  ? 'Transcribing…'
+                  : 'Listening…'
+              : dictation.state === 'recording'
               ? 'Listening… ⌘⌥S or the mic button to stop'
               : dictation.state === 'transcribing'
                 ? 'Transcribing…'
@@ -472,6 +500,17 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
         />
 
         <div className="composer-actions">
+          <button
+            className={`btn${listening.listening ? (listening.speaking ? ' is-recording' : ' is-active') : ''}`}
+            onClick={listening.toggle}
+            title={
+              listening.listening
+                ? 'Listening — click to stop'
+                : 'Listen continuously and answer each question asked'
+            }
+          >
+            <EarIcon />
+          </button>
           <button
             className={`btn${dictation.state === 'recording' ? ' is-recording' : ''}`}
             onClick={dictation.toggle}

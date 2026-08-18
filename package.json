@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "concurrently -k -n next,electron -c cyan,magenta \"next dev -p ${PORT:-3000}\" \"wait-on tcp:127.0.0.1:${PORT:-3000} && node scripts/start-electron.mjs\"",
     "dev:web": "next dev -p ${PORT:-3000}",
+    "stt": "whisper-server -m $HOME/.whisper-models/ggml-small.en.bin --host 127.0.0.1 --port 8178 --request-path /v1 --inference-path /audio/transcriptions --convert -t 8",
     "build": "next build && node scripts/prepare-server.mjs",
     "icons": "node scripts/make-icons.mjs",
     "start": "node scripts/start-electron.mjs",
