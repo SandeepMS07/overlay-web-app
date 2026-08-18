@@ -204,9 +204,11 @@ async function retrieve(query: string): Promise<string | null> {
   }
 
   return [
-    'Passages retrieved from the user\'s own documents, most relevant first.',
-    'Treat them as authoritative about the user. If they do not cover what was',
-    'asked, say so plainly rather than guessing.',
+    'Background material: passages from the user\'s own documents, most relevant',
+    'first. They are authoritative about the user and their work. Use them when',
+    'the question touches on the user or these documents; otherwise ignore them',
+    'and answer normally from your own knowledge. Never refuse a question merely',
+    'because these passages do not cover it.',
     '',
     sections.join('\n\n'),
   ].join('\n');
@@ -247,9 +249,11 @@ export async function docsContext(query?: string): Promise<string> {
   if (sections.length === 0) return '';
 
   return [
-    "Reference documents the user has attached about themselves and their work.",
-    'Treat them as authoritative about the user. Use them when they are relevant',
-    'to the question, and say so plainly when they do not cover what was asked.',
+    'Background material: documents the user has attached about themselves and',
+    'their work. They are authoritative about the user. Use them when the question',
+    'touches on the user or these documents; otherwise ignore them and answer',
+    'normally from your own knowledge. Never refuse a question merely because',
+    'these documents do not cover it.',
     '',
     sections.join('\n\n'),
   ].join('\n');
