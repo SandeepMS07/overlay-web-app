@@ -304,6 +304,18 @@ function createWindow() {
 
   // Any target=_blank / external navigation opens in the real browser rather
   // than hijacking the overlay.
+  // Local to this window rather than a global shortcut: F12 and Cmd+Alt+I stay
+  // available to every other app.
+  win.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return;
+    const inspect =
+      (input.meta || input.control) && input.alt && String(input.key).toLowerCase() === 'i';
+    if (input.key === 'F12' || inspect) {
+      event.preventDefault();
+      toggleDevTools();
+    }
+  });
+
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
@@ -315,6 +327,20 @@ function createWindow() {
       shell.openExternal(url);
     }
   });
+}
+
+/**
+ * Chrome DevTools for the overlay's own page. Always detached: docked, it would
+ * take over a window that is only a few hundred pixels wide.
+ *
+ * The DevTools window is a separate window of its own, so it is NOT excluded
+ * from screen capture the way the overlay is.
+ */
+function toggleDevTools() {
+  if (!win || win.isDestroyed()) return;
+  const wc = win.webContents;
+  if (wc.isDevToolsOpened()) wc.closeDevTools();
+  else wc.openDevTools({ mode: 'detach' });
 }
 
 function toggleVisibility() {
@@ -387,6 +413,8 @@ function rebuildTrayMenu() {
           win.show();
         },
       },
+      { type: 'separator' },
+      { label: 'Developer Tools', accelerator: 'F12', click: toggleDevTools },
       { type: 'separator' },
       { label: 'Quit', accelerator: 'CmdOrCtrl+Q', click: () => app.quit() },
     ])

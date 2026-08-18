@@ -193,6 +193,39 @@ Cross-building a Windows installer from macOS works for the NSIS target but
 needs Wine; the reliable route is to run `npm run dist:win` on Windows (or in
 CI on a `windows-latest` runner).
 
+## Debugging
+
+There are three separate places things can go wrong, each with its own console.
+
+**The UI (renderer)** — Chrome DevTools. Press `F12` or `⌘⌥I` with the overlay
+focused, or use **Developer Tools** in the tray menu. It opens detached, because
+docking it inside a window this narrow leaves no room for the app. These are
+window-local key bindings, not global shortcuts, so `F12` and `⌘⌥I` still belong
+to every other app on the machine.
+
+> The DevTools window is a window of its own and is **not** excluded from screen
+> capture the way the overlay is. Close it before sharing your screen.
+
+**The API routes (Next server)** — `console.log` from anything under
+`src/app/api/` and `src/lib/` goes to the terminal running `npm run dev`. Next
+also keeps a structured copy at `.next/dev/logs/next-development.log`. In a
+packaged build the bundled server's output is forwarded to the parent process
+with a `[next]` prefix. You can also hit the routes directly, without the UI:
+
+```bash
+curl -s http://127.0.0.1:3000/api/settings
+curl -s http://127.0.0.1:3000/api/keys          # reports presence, never values
+curl -s -X POST http://127.0.0.1:3000/api/transcribe -F "audio=@clip.webm"
+```
+
+**The Electron main process** — window, tray, shortcuts and permissions. Its
+`console.log` also goes to the `npm run dev` terminal. For a real debugger,
+start it with an inspector and attach from `chrome://inspect`:
+
+```bash
+node scripts/start-electron.mjs --inspect=5858
+```
+
 ## Troubleshooting
 
 **The overlay never appears and the terminal prints an Electron API error.**
