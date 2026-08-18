@@ -40,7 +40,7 @@ the server is up. Paste an API key in the 🔑 panel and ask a question.
   shares, recordings and screenshots, with no toggle to switch it off. See
   [Screen-capture exclusion](#screen-capture-exclusion) for what that does and
   does not cover.
-- **See-through** — opacity starts at 80% so whatever is behind the overlay
+- **See-through** — opacity starts at 95% so whatever is behind the overlay
   stays readable. The slider goes from 20% to fully opaque.
 - **Click-through mode** — the window goes ghost and your clicks land on the app
   underneath.

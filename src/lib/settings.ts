@@ -18,8 +18,8 @@ export type Settings = {
 };
 
 export const DEFAULT_SETTINGS: Settings = {
-  // Slightly see-through so whatever is behind the overlay stays readable.
-  opacity: 0.8,
+  // Just off opaque: readable at a glance, with a hint of what is behind it.
+  opacity: 0.95,
   clickThrough: false,
   alwaysOnTop: true,
   compact: false,
