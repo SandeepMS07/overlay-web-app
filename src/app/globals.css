@@ -274,6 +274,53 @@ body {
   color: #dfe3ea;
 }
 
+/* Positioning context for the copy button, which floats over the block. */
+.code-wrap {
+  position: relative;
+}
+
+/* Hidden until the block is hovered, so it does not sit over the first line of
+   every answer — but always visible once copied, or the confirmation vanishes
+   the moment the pointer moves away. */
+.code-copy {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  background: rgba(20, 22, 28, 0.9);
+  color: var(--text-dim);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease, color 0.12s ease;
+}
+
+.code-wrap:hover .code-copy,
+.code-copy:focus-visible,
+.code-copy.is-copied {
+  opacity: 1;
+}
+
+.code-copy:hover {
+  color: var(--text);
+}
+
+.code-copy.is-copied {
+  color: #6ee7a8;
+  border-color: rgba(110, 231, 168, 0.4);
+}
+
+.code-copy svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+
 .code {
   margin: 8px 0;
   padding: 9px 11px;
@@ -285,6 +332,10 @@ body {
   line-height: 1.55;
   overflow-x: auto;
   white-space: pre;
+}
+
+.code-wrap .code {
+  padding-right: 34px;
 }
 
 .chat-thinking {

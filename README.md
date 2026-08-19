@@ -37,6 +37,8 @@ something else already owns 3000.
   sends the question without you typing. See [Speech to text](#speech-to-text).
 - **Paste a screenshot** into the composer and ask about it — `⌘⇧⌃4` on macOS
   captures straight to the clipboard. See [Screenshots](#screenshots).
+- **Copy any code block** with the button that appears on hover — the reason a
+  snippet is on screen is usually that it is about to be typed somewhere else.
 - **`⌘⇧A` from any app** reveals the overlay with the caret already in the
   question box.
 - **Always on top**, above every app including full-screen VS Code, Chrome and

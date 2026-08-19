@@ -39,6 +39,11 @@ export const DocIcon = wrap(
   <path d="M6 2h7l5 5v15H6zm7 1.5V8h4.5zM8 12h8v1.6H8zm0 3.2h8v1.6H8z" />
 );
 export const PlusIcon = wrap(<path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z" />);
+/** Two overlapping sheets — the usual copy glyph. */
+export const CopyIcon = wrap(
+  <path d="M9 2h9a2 2 0 012 2v11h-2V4H9zM5 6h9a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2zm0 2v12h9V8z" />
+);
+export const CheckIcon = wrap(<path d="M9.6 16.2 5.4 12l-1.4 1.4 5.6 5.6L20.4 7.8 19 6.4z" />);
 export const KeyIcon = wrap(
   <path d="M14 3a6 6 0 00-5.7 8L3 16.3V21h4.7l1.4-1.4V18h1.6l1.4-1.4v-1.7h1.2A6 6 0 1014 3zm2.4 5.2a1.6 1.6 0 110-3.2 1.6 1.6 0 010 3.2z" />
 );

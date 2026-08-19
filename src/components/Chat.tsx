@@ -9,8 +9,10 @@ import { useListening } from '@/lib/useListening';
 // Type-only: lib/docs.ts is server-side and pulls in node:fs at runtime.
 import type { DocMeta } from '@/lib/docs';
 import {
+  CheckIcon,
   ChipIcon,
   CloseIcon,
+  CopyIcon,
   DocIcon,
   EarIcon,
   GlobeIcon,
@@ -720,13 +722,54 @@ function Bubble({
       ))}
       {segments.map((segment, index) =>
         index % 2 === 1 ? (
-          <pre key={index} className="code">
-            <code>{segment.replace(/^[a-zA-Z0-9+-]*\n/, '')}</code>
-          </pre>
+          <Code key={index} text={segment.replace(/^[a-zA-Z0-9+-]*\n/, '')} />
         ) : (
           <Markdown key={index} text={segment} />
         )
       )}
+    </div>
+  );
+}
+
+/**
+ * A fenced code block with a copy button.
+ *
+ * The button is the point of the component — reading code off an overlay is
+ * fine, but the reason it is on screen is usually that it is about to be typed
+ * somewhere else.
+ */
+function Code({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  // Clears itself, and cancels on unmount so a copy from a message that gets
+  // cleared cannot set state on a gone component.
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 1400);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
+  const copy = () => {
+    // The renderer is a normal secure context, so the async clipboard API is
+    // available; document.execCommand is the fallback for nothing here.
+    navigator.clipboard.writeText(text).then(
+      () => setCopied(true),
+      () => setCopied(false)
+    );
+  };
+
+  return (
+    <div className="code-wrap">
+      <pre className="code">
+        <code>{text}</code>
+      </pre>
+      <button
+        className={`code-copy${copied ? ' is-copied' : ''}`}
+        onClick={copy}
+        title={copied ? 'Copied' : 'Copy'}
+      >
+        {copied ? <CheckIcon /> : <CopyIcon />}
+      </button>
     </div>
   );
 }
