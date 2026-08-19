@@ -284,6 +284,7 @@ function createWindow() {
   });
 
   hardenWebviews(win.webContents);
+  win.webContents.on('did-attach-webview', (_event, guest) => keepPopupsInTab(guest));
 
   pinToAllSpaces();
   // Set before the first show, so the window is never captured even briefly.
@@ -473,17 +474,31 @@ function createTray() {
 const BROWSER_PARTITION = 'persist:browser';
 
 /**
- * Chromium's own UA with the Electron and app tokens removed.
+ * A plain Chrome user agent for the browser tab.
  *
- * Not a disguise: several large sites gate their login on a UA allowlist and
- * serve a "browser not supported" page to anything unrecognised, so the
- * unmodified string makes a site that works in Chrome fail here for no reason
- * other than the name. The engine underneath genuinely is this Chromium.
+ * Built from `process.versions.chrome` rather than edited out of the default
+ * string. Electron's default carries both an `Electron/x` token and one named
+ * after the app, and the app's own name is whatever `productName` happens to
+ * be — it can contain a space, which no regex over a UA string survives
+ * cleanly. Constructing it leaves nothing to strip.
+ *
+ * Not a disguise: the engine genuinely is this Chromium. Several large sites
+ * gate login on a UA allowlist and serve "unsupported browser" to anything
+ * they do not recognise, so the unmodified string makes a site that works in
+ * Chrome fail here over its name alone.
  */
 function browserUserAgent() {
-  return session.defaultSession
-    .getUserAgent()
-    .replace(/ (Electron|overlay-player)\/[^ ]+/g, '');
+  const chrome = `${process.versions.chrome.split('.')[0]}.0.0.0`;
+  const platform =
+    process.platform === 'darwin'
+      ? 'Macintosh; Intel Mac OS X 10_15_7'
+      : process.platform === 'win32'
+        ? 'Windows NT 10.0; Win64; x64'
+        : 'X11; Linux x86_64';
+  return (
+    `Mozilla/5.0 (${platform}) AppleWebKit/537.36 (KHTML, like Gecko) ` +
+    `Chrome/${chrome} Safari/537.36`
+  );
 }
 
 function configurePermissions() {
@@ -514,6 +529,21 @@ function hardenWebviews(contents) {
     webPreferences.nodeIntegration = false;
     webPreferences.contextIsolation = true;
     params.partition = BROWSER_PARTITION;
+  });
+}
+
+/**
+ * Popups opened by a page in the browser tab.
+ *
+ * Sign-in flows routinely start in a popup. Left to the default the guest gets
+ * a bare window with none of this app's settings — outside the overlay, and so
+ * outside its capture exclusion. Denying it and navigating the tab itself
+ * keeps the flow in one place; the provider redirects back either way.
+ */
+function keepPopupsInTab(guest) {
+  guest.setWindowOpenHandler(({ url }) => {
+    if (/^https?:/i.test(url)) guest.loadURL(url).catch(() => {});
+    return { action: 'deny' };
   });
 }
 

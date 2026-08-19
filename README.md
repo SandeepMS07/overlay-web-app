@@ -235,15 +235,25 @@ survive a restart, and a site's cookies can never reach the app's requests.
 `will-attach-webview` strips the preload and forces `contextIsolation` on every
 guest, so a page cannot widen its own privileges by setting attributes.
 
-The user agent has the `Electron` and app tokens removed. That is not a
+The user agent is constructed from `process.versions.chrome` rather than
+edited out of Electron's default. That is not a
 disguise — the engine genuinely is this Chromium — but several large sites gate
 login behind a UA allowlist and serve "unsupported browser" to anything they do
 not recognise. Unmodified, `chatgpt.com` bounced straight to `/auth/login`;
-with the tokens removed it served the normal app.
+with a plain Chrome string it served the normal app. Editing the default is
+the fragile version — it carries a token named after the app, and `productName`
+may contain a space, which no regex over a UA survives cleanly.
 
-> **Google sign-in may refuse to work.** Google blocks OAuth in embedded
-> browser frames, and there is no flag that fixes it. Sign in with email and
-> password where a site offers it.
+Popups are denied and loaded into the tab that opened them. Sign-in flows
+routinely start in a popup, and the default would put it in a bare window
+outside the overlay — and so outside its capture exclusion.
+
+> **Google sign-in does not work, and cannot be made to.** Google blocks OAuth
+> from embedded browsers as policy — the failure is a bare `400 … malformed`
+> page from `accounts.google.com`, not something a setting fixes. Anything that
+> did make it work would be defeating a security control rather than fixing a
+> bug. Use email and password where a site offers it; a Google-SSO-only account
+> cannot be signed into here at all.
 
 One trap worth recording, because it costs an afternoon to find: bind the
 webview's `src` to the URL that `did-navigate` writes back, and every redirect
