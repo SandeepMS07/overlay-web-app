@@ -14,6 +14,8 @@ export type Settings = {
   compact: boolean;
   /** Let the model search the web before answering. */
   webSearch: boolean;
+  /** Answer in the first person as the user, from their own documents. */
+  speakAsMe: boolean;
   provider: ProviderId;
   /** The cloud provider to return to when the offline switch is turned off. */
   cloudProvider: ProviderId;
@@ -30,6 +32,7 @@ export const DEFAULT_SETTINGS: Settings = {
   // Off by default: searching costs more and adds latency, and most questions
   // in a scratch overlay do not need it.
   webSearch: false,
+  speakAsMe: false,
   provider: 'anthropic',
   cloudProvider: 'anthropic',
   models: {},

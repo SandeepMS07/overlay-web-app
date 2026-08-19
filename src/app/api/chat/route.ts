@@ -11,6 +11,7 @@ type ChatRequest = {
   model?: string;
   messages?: ChatMessage[];
   webSearch?: boolean;
+  speakAsMe?: boolean;
 };
 
 /**
@@ -46,6 +47,7 @@ export async function POST(request: Request) {
   const documents = await docsContext(query).catch(() => '');
   // A local model has no internet, so the flag is meaningless there.
   const webSearch = body.webSearch === true && !PROVIDERS[body.provider].offline;
+  const speakAsMe = body.speakAsMe === true;
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream<Uint8Array>({
@@ -60,6 +62,7 @@ export async function POST(request: Request) {
           messages,
           documents,
           webSearch,
+          speakAsMe,
           signal: request.signal,
         })) {
           send({ type: 'delta', text });

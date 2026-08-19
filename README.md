@@ -140,6 +140,20 @@ embedded at upload**, and at question time the question is embedded and the five
 closest passages are sent rather than whole documents. That is what makes many
 or large documents practical.
 
+**Search is hybrid — embeddings and keywords take turns.** Dense vectors match
+meaning and are poor at exact terms: "what is your email" embeds nowhere near a
+line reading `Email: someone@example.com`, and with a few hundred chunks the
+cosine scores bunch together with no discrimination. BM25 is the complement — it
+only matches literal terms, so a proper noun or an address ranks first.
+
+Reciprocal rank fusion was tried for the merge and was **wrong here**: RRF
+rewards consensus, so a passage placed mid-table by both rankers outscores one
+that a single ranker puts first. For an exact-term lookup with one right answer,
+that buried the correct passage outside the top five even though BM25 ranked it
+**first**. Round-robin — first place from each ranker, then second, skipping
+duplicates — guarantees each ranker its pick. A ranker scoring zero forfeits its
+turn rather than injecting an unmatched passage.
+
 **Chunk on meaning, not on character count.** Blocks are split at blank lines and
 packed whole; a block longer than the target is split at sentence ends. Fixed
 1200-character windows were tried first and were measurably worse: a window over
@@ -171,6 +185,19 @@ retrieved passages when embeddings are available, whole documents otherwise — 
 it is paid for on every turn; remove what you are not using. And the extracted
 text and its vectors sit unencrypted in the app's data directory, next to
 `settings.json`; treat them like any other file in your home directory.
+
+## Answering as yourself
+
+A checkbox in the key panel switches answers to the first person, drawing on
+your own documents as your own experience — "I built…", not "Sandeep built…".
+
+The anti-fabrication rule in that prompt is the half that matters. Asked to
+speak as someone, a model will invent plausible detail: in testing it produced a
+confident, entirely fictional email address and claimed to have no GitHub
+account. The prompt now requires contact details, employers, dates, numbers and
+links to be quoted from the material and nowhere else, and to answer "I would
+need to check that" otherwise. A wrong detail stated confidently is worse than
+an admission — especially about your own history.
 
 ## Web search
 

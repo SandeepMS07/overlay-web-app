@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { chunkText, cosine, embed } from '@/lib/embeddings';
+import { bm25, interleave } from '@/lib/lexical';
 
 /**
  * Reference documents the assistant can draw on — a CV, a project brief, notes.
@@ -40,8 +41,12 @@ const TOP_K = 5;
  */
 const RETRIEVAL_CHARS = 6000;
 
-/** Per-document ceiling, so one huge file cannot crowd out the others. */
-const MAX_DOC_CHARS = 40_000;
+/**
+ * Storage ceiling per document. Generous on purpose: with retrieval, only a
+ * handful of passages are ever sent, so a large reference document costs disk
+ * rather than context. The limits that matter are the send-time ones below.
+ */
+const MAX_DOC_CHARS = 400_000;
 /** Total ceiling across all documents for a single question. */
 export const MAX_CONTEXT_CHARS = 80_000;
 
@@ -212,7 +217,7 @@ async function retrieve(query: string): Promise<string | null> {
   const queryVec = (await embed([query], 'query'))?.[0];
   if (!queryVec) return null;
 
-  const scored: { name: string; text: string; score: number }[] = [];
+  const pool: { name: string; text: string; dense: number }[] = [];
   for (const doc of indexed) {
     let chunks: Chunk[];
     try {
@@ -223,16 +228,21 @@ async function retrieve(query: string): Promise<string | null> {
       continue;
     }
     for (const chunk of chunks) {
-      scored.push({ name: doc.name, text: chunk.text, score: cosine(queryVec, chunk.vec) });
+      pool.push({ name: doc.name, text: chunk.text, dense: cosine(queryVec, chunk.vec) });
     }
   }
-  if (scored.length === 0) return null;
+  if (pool.length === 0) return null;
 
-  scored.sort((a, b) => b.score - a.score);
+  // Hybrid: the embedding ranking and a keyword ranking take turns. Dense alone
+  // misses exact-term lookups — an address, a product name — because those
+  // carry far more signal literally than they do in vector space.
+  const lexicalScores = bm25(query, pool.map((p) => p.text));
+  const order = interleave([pool.map((p) => p.dense), lexicalScores], TOP_K);
+  const hits = order.map((i) => pool[i]);
 
   const sections: string[] = [];
   let budget = RETRIEVAL_CHARS;
-  for (const hit of scored.slice(0, TOP_K)) {
+  for (const hit of hits) {
     if (budget <= 0) break;
     const slice = hit.text.slice(0, budget);
     budget -= slice.length;

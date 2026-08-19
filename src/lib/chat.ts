@@ -22,6 +22,8 @@ type StreamOptions = {
   webSearch?: boolean;
   /** Apply the hard length ceiling; used for local models. */
   brief?: boolean;
+  /** Answer in the first person as the user. */
+  speakAsMe?: boolean;
   /**
    * Passed straight through to the endpoint. Ollama uses it to switch a
    * reasoning model's thinking off — 'none' is the only value that works, and
@@ -40,6 +42,20 @@ const BREVITY_NOTE =
   'Answer in at most 120 words unless the user asks for more. Never use headings, ' +
   'horizontal rules, or bold section titles — plain sentences and, at most, a short list.';
 
+/**
+ * First-person mode. The anti-fabrication clause is the important half: without
+ * it a model asked to speak as someone will invent plausible detail, and a
+ * confident invention about your own history is worse than an admission.
+ */
+const PERSONA_NOTE =
+  'Answer in the first person as the user themselves, treating the background material ' +
+  'as your own experience: "I built…", never "Sandeep built…" and never "the documents say". ' +
+  'Lead with the direct answer in one or two sentences. ' +
+  'Never invent a fact about yourself. Contact details, employers, dates, numbers, ' +
+  'links and names must be quoted exactly from the background material and nowhere else. ' +
+  'If the material does not contain the answer, say "I would need to check that" — ' +
+  'a wrong detail stated confidently is far worse than admitting you do not have it.';
+
 const WEB_SEARCH_NOTE =
   'You can search the web. Do so when the question depends on current information ' +
   'or on anything you are not sure of, and name the source in your answer.';
@@ -47,6 +63,7 @@ const WEB_SEARCH_NOTE =
 function systemPrompt(opts: StreamOptions): string {
   return [
     SYSTEM_PROMPT,
+    opts.speakAsMe ? PERSONA_NOTE : '',
     opts.brief ? BREVITY_NOTE : '',
     opts.webSearch ? WEB_SEARCH_NOTE : '',
     opts.documents ?? '',

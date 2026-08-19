@@ -174,6 +174,7 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
           model: settings.models?.[provider] ?? '',
           messages: next,
           webSearch: settings.webSearch,
+          speakAsMe: settings.speakAsMe,
         }),
       });
 
@@ -229,7 +230,16 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
       setPartial('');
       setStreaming(false);
     }
-  }, [draft, messages, notify, provider, settings.models, settings.webSearch, streaming]);
+  }, [
+    draft,
+    messages,
+    notify,
+    provider,
+    settings.models,
+    settings.speakAsMe,
+    settings.webSearch,
+    streaming,
+  ]);
 
   const stop = useCallback(() => abortRef.current?.abort(), []);
 
@@ -439,6 +449,15 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
             )}
           </label>
           )}
+
+          <label className="keys-field keys-check">
+            <input
+              type="checkbox"
+              checked={settings.speakAsMe}
+              onChange={(e) => update({ speakAsMe: e.target.checked })}
+            />
+            <span>Answer in the first person, as me, from my documents</span>
+          </label>
 
           <label className="keys-field keys-check">
             <input

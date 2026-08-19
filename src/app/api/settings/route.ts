@@ -20,6 +20,7 @@ export async function PATCH(request: Request) {
   if (typeof body.alwaysOnTop === 'boolean') patch.alwaysOnTop = body.alwaysOnTop;
   if (typeof body.compact === 'boolean') patch.compact = body.compact;
   if (typeof body.webSearch === 'boolean') patch.webSearch = body.webSearch;
+  if (typeof body.speakAsMe === 'boolean') patch.speakAsMe = body.speakAsMe;
   if (isProviderId(body.provider)) patch.provider = body.provider;
   // Only a cloud provider can be the fallback, or the toggle would flip local
   // to local and appear stuck.
