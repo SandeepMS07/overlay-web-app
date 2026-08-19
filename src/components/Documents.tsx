@@ -14,6 +14,18 @@ function newestFirst(docs: DocMeta[]): DocMeta[] {
 }
 
 /**
+ * The size worth showing.
+ *
+ * For a document it is the extracted text, because that is what reaches the
+ * model and what the chunk count is drawn from. For an image there is no text,
+ * so the character count is zero and the file size is the only honest number.
+ */
+function sizeLabel(doc: DocMeta): string {
+  if (doc.mime?.startsWith('image/')) return `${Math.max(1, Math.round(doc.bytes / 1024))} KB`;
+  return `${Math.max(1, Math.round(doc.chars / 1000))}k`;
+}
+
+/**
  * The documents the assistant answers from, and a reader for them.
  *
  * Two views of the same file, because they are genuinely different things: the
@@ -48,11 +60,13 @@ export default function Documents({
   }, [refresh]);
 
   const doc = docs.find((d) => d.id === selected) ?? null;
+  const isImage = doc?.mime?.startsWith('image/') ?? false;
 
   // A document with no stored original predates originals being kept, so the
-  // extracted text is the only thing there is to show.
+  // extracted text is the only thing there is to show. An image is the
+  // opposite: there is no text at all, only the picture.
   const textOnly = !doc?.mime;
-  const asText = showText || textOnly;
+  const asText = !isImage && (showText || textOnly);
 
   useEffect(() => {
     if (!doc || !asText) return;
@@ -154,7 +168,7 @@ export default function Documents({
           className="hidden-file"
           type="file"
           multiple
-          accept=".pdf,.txt,.md,.markdown,.csv,.json,.log,application/pdf,text/*"
+          accept=".pdf,.txt,.md,.markdown,.csv,.json,.log,.png,.jpg,.jpeg,.gif,.webp,application/pdf,text/*,image/*"
           onChange={(e) => {
             void upload(e.target.files);
             e.target.value = '';
@@ -164,7 +178,8 @@ export default function Documents({
         {docs.length === 0 ? (
           <p className="keys-note">
             Add a CV, a project brief or notes. Text is read once when you add the file, and
-            the assistant retrieves the relevant passages when answering.
+            the assistant retrieves the relevant passages when answering. Images are kept to
+            look at — there is no text in them to retrieve.
           </p>
         ) : (
           <ul className="doc-list">
@@ -178,7 +193,7 @@ export default function Documents({
                 <span className="doc-name" title={d.name}>
                   {d.name}
                 </span>
-                <span className="doc-size">{Math.max(1, Math.round(d.chars / 1000))}k</span>
+                <span className="doc-size">{sizeLabel(d)}</span>
                 <button
                   className="btn is-danger"
                   onClick={(e) => {
@@ -205,7 +220,7 @@ export default function Documents({
                 {doc.name}
               </strong>
               <span className="spacer" />
-              {!textOnly && (
+              {!textOnly && !isImage && (
                 <button
                   className={`btn${asText ? ' is-active' : ''}`}
                   onClick={() => setShowText((v) => !v)}
@@ -225,6 +240,10 @@ export default function Documents({
 
             {asText ? (
               <pre className="docs-text">{text || 'Reading…'}</pre>
+            ) : isImage ? (
+              <div className="docs-image">
+                <img src={`/api/docs/${doc.id}`} alt={doc.name} />
+              </div>
             ) : (
               // Chromium's built-in PDF viewer, which is better than anything
               // worth hand-rolling — and it is already in this process.

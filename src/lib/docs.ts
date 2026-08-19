@@ -94,6 +94,23 @@ function isPdf(name: string, type: string): boolean {
   return type === 'application/pdf' || path.extname(name).toLowerCase() === '.pdf';
 }
 
+const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.bmp']);
+
+function isImage(name: string, type: string): boolean {
+  if (type.startsWith('image/')) return true;
+  return IMAGE_EXTENSIONS.has(path.extname(name).toLowerCase());
+}
+
+/** The content type to serve a stored original back as. */
+function mimeFor(file: File): string {
+  if (file.type) return file.type;
+  if (isPdf(file.name, file.type)) return 'application/pdf';
+  const ext = path.extname(file.name).toLowerCase();
+  if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
+  if (IMAGE_EXTENSIONS.has(ext)) return `image/${ext.slice(1)}`;
+  return 'text/plain';
+}
+
 async function extractText(file: File): Promise<string> {
   const buffer = new Uint8Array(await file.arrayBuffer());
 
@@ -136,15 +153,22 @@ export async function addDoc(file: File): Promise<DocMeta> {
     throw new DocError(`"${file.name}" is larger than 10 MB.`);
   }
 
-  const raw = await extractText(file);
-  const text = raw.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
-  if (!text) throw new DocError(`"${file.name}" contained no text.`);
+  // An image is kept to be looked at, not read. There is no text to extract
+  // without OCR, so it is stored, shown, and left out of retrieval entirely —
+  // rather than rejected, which is what used to happen to a photo or a scan.
+  const picture = isImage(file.name, file.type);
+  const clipped = picture
+    ? ''
+    : (await extractText(file)).replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim().slice(0, MAX_DOC_CHARS);
 
-  const clipped = text.slice(0, MAX_DOC_CHARS);
+  if (!picture && !clipped) throw new DocError(`"${file.name}" contained no text.`);
+
   const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
   await fs.mkdir(DOCS_DIR, { recursive: true });
-  await fs.writeFile(path.join(DOCS_DIR, `${id}.txt`), clipped, 'utf8');
+  // No .txt for an image. docsContext skips a document whose text file is
+  // missing, so this is also what keeps it out of every prompt.
+  if (!picture) await fs.writeFile(path.join(DOCS_DIR, `${id}.txt`), clipped, 'utf8');
   // Keep the original as well. The extracted text is what the model reads, but
   // a person wants the actual PDF — its layout, tables and figures are exactly
   // the parts extraction throws away.
@@ -153,7 +177,7 @@ export async function addDoc(file: File): Promise<DocMeta> {
   // Index for retrieval if a local embedding model is reachable. When it is
   // not, the document still works — docsContext() falls back to sending it
   // whole — so a missing daemon costs relevance, not function.
-  const chunks = await indexDoc(id, clipped);
+  const chunks = picture ? 0 : await indexDoc(id, clipped);
 
   const meta: DocMeta = {
     id,
@@ -162,7 +186,7 @@ export async function addDoc(file: File): Promise<DocMeta> {
     chars: clipped.length,
     addedAt: new Date().toISOString(),
     chunks,
-    mime: file.type || (isPdf(file.name, file.type) ? 'application/pdf' : 'text/plain'),
+    mime: mimeFor(file),
   };
 
   await writeIndex([...(await readIndex()), meta]);

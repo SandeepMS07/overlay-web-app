@@ -37,8 +37,8 @@ something else already owns 3000.
   sends the question without you typing. See [Speech to text](#speech-to-text).
 - **Paste a screenshot** into the composer and ask about it — `⌘⇧⌃4` on macOS
   captures straight to the clipboard. See [Screenshots](#screenshots).
-- **A documents tab** that reads your PDFs in place, and shows the extracted
-  text the model actually works from. See [Documents](#documents).
+- **A documents tab** that reads your PDFs and images in place, and shows the
+  extracted text the model actually works from. See [Documents](#documents).
 - **A browser tab** with its own tabs, address bar and history, sharing the
   window's capture exclusion. See [Browser](#browser).
 - **Copy any code block** with the button that appears on hover — the reason a
@@ -136,6 +136,11 @@ things, and the difference is usually where a wrong answer comes from — a
 table that flattened into noise, a heading that swallowed the paragraph under
 it. Selecting a PDF renders it in Chromium's own viewer; the **Text** button
 beside it shows the extraction instead, so the two can be compared directly.
+
+**Images** — a photo, a scan, a screenshot — are kept to be looked at. There is
+no text in them to extract without OCR, so they are stored and displayed but
+left out of retrieval entirely, and never appear in a prompt. Previously they
+were simply rejected.
 
 Documents added before originals were kept show only the extracted text. Add a PDF or a plain
 text file (`.txt`, `.md`, `.csv`, `.json`) and its text is extracted **once, at
