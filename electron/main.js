@@ -308,11 +308,25 @@ function createWindow() {
   // available to every other app.
   win.webContents.on('before-input-event', (event, input) => {
     if (input.type !== 'keyDown') return;
-    const inspect =
-      (input.meta || input.control) && input.alt && String(input.key).toLowerCase() === 'i';
+    const mod = input.meta || input.control;
+    const key = String(input.key).toLowerCase();
+
+    const inspect = mod && input.alt && key === 'i';
     if (input.key === 'F12' || inspect) {
       event.preventDefault();
       toggleDevTools();
+      return;
+    }
+
+    // Reload. There is no application menu on this window — it is a panel with
+    // a tray, not a document window — so Cmd+R is not wired up for free the way
+    // it is in a normal Electron app.
+    if ((mod && key === 'r') || input.key === 'F5') {
+      event.preventDefault();
+      // Shift bypasses the HTTP cache, which is the one that helps when a
+      // stale asset is the actual problem.
+      if (input.shift) win.webContents.reloadIgnoringCache();
+      else win.webContents.reload();
     }
   });
 
@@ -414,6 +428,11 @@ function rebuildTrayMenu() {
         },
       },
       { type: 'separator' },
+      {
+        label: 'Reload',
+        accelerator: 'CmdOrCtrl+R',
+        click: () => win && !win.isDestroyed() && win.webContents.reload(),
+      },
       { label: 'Developer Tools', accelerator: 'F12', click: toggleDevTools },
       { type: 'separator' },
       { label: 'Quit', accelerator: 'CmdOrCtrl+Q', click: () => app.quit() },

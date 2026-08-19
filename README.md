@@ -466,6 +466,15 @@ CI on a `windows-latest` runner).
 
 ## Debugging
 
+**Reloading** — `⌘R` (or `F5`), with `⇧` added to bypass the HTTP cache. Also
+**Reload** in the tray menu. This has to be wired explicitly: the overlay is a
+panel driven from the tray, with no application menu, so it does not inherit
+the reload item a normal Electron window gets for free.
+
+Most of the time you will not need it. Under `next dev` a change to anything
+server-side — `lib/chat.ts`, a route handler — applies on the next request, and
+Turbopack pushes renderer changes in by itself.
+
 There are three separate places things can go wrong, each with its own console.
 
 **The UI (renderer)** — Chrome DevTools. Press `F12` or `⌘⌥I` with the overlay
