@@ -25,6 +25,12 @@ export type DocMeta = {
   addedAt: string;
   /** How many embedded chunks exist; 0 means this document is stuffed whole. */
   chunks?: number;
+  /**
+   * Content type of the stored original, when there is one. Absent on
+   * documents added before originals were kept — those can still be read as
+   * extracted text, just not rendered as the file they came from.
+   */
+  mime?: string;
 };
 
 /** One embedded passage. */
@@ -139,6 +145,10 @@ export async function addDoc(file: File): Promise<DocMeta> {
 
   await fs.mkdir(DOCS_DIR, { recursive: true });
   await fs.writeFile(path.join(DOCS_DIR, `${id}.txt`), clipped, 'utf8');
+  // Keep the original as well. The extracted text is what the model reads, but
+  // a person wants the actual PDF — its layout, tables and figures are exactly
+  // the parts extraction throws away.
+  await fs.writeFile(path.join(DOCS_DIR, `${id}.src`), new Uint8Array(await file.arrayBuffer()));
 
   // Index for retrieval if a local embedding model is reachable. When it is
   // not, the document still works — docsContext() falls back to sending it
@@ -152,6 +162,7 @@ export async function addDoc(file: File): Promise<DocMeta> {
     chars: clipped.length,
     addedAt: new Date().toISOString(),
     chunks,
+    mime: file.type || (isPdf(file.name, file.type) ? 'application/pdf' : 'text/plain'),
   };
 
   await writeIndex([...(await readIndex()), meta]);
@@ -200,6 +211,29 @@ export async function removeDoc(id: string): Promise<void> {
   await writeIndex(next);
   await fs.rm(path.join(DOCS_DIR, `${id}.txt`), { force: true });
   await fs.rm(path.join(DOCS_DIR, `${id}.vec.json`), { force: true });
+  await fs.rm(path.join(DOCS_DIR, `${id}.src`), { force: true });
+}
+
+/** The extracted text — what the model actually sees. */
+export async function readDocText(id: string): Promise<string | null> {
+  try {
+    return await fs.readFile(path.join(DOCS_DIR, `${id}.txt`), 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+/** The uploaded file itself, if it was kept. */
+export async function readDocSource(id: string): Promise<Uint8Array | null> {
+  try {
+    return new Uint8Array(await fs.readFile(path.join(DOCS_DIR, `${id}.src`)));
+  } catch {
+    return null;
+  }
+}
+
+export async function findDoc(id: string): Promise<DocMeta | null> {
+  return (await readIndex()).find((doc) => doc.id === id) ?? null;
 }
 
 // ------------------------------------------------------------------- context

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Browser from '@/components/Browser';
 import Chat from '@/components/Chat';
+import Documents from '@/components/Documents';
 import { DEFAULT_SETTINGS, type Settings } from '@/lib/settings';
 import { PROVIDERS } from '@/lib/providers';
 import { CloseIcon, GhostIcon, MinusIcon, PinIcon } from '@/components/Icons';
@@ -205,6 +206,13 @@ export default function OverlayApp() {
             {PROVIDERS[settings.provider].label}
           </button>
           <button
+            className={`tab-pick${settings.tab === 'docs' ? ' is-active' : ''}`}
+            onClick={() => update({ tab: 'docs' })}
+            title="Documents the assistant answers from"
+          >
+            Docs
+          </button>
+          <button
             className={`tab-pick${settings.tab === 'browser' ? ' is-active' : ''}`}
             onClick={() => update({ tab: 'browser' })}
             title="Browser"
@@ -251,7 +259,7 @@ export default function OverlayApp() {
             away every logged-in page, the moment you looked at the other. */}
         {ready && (
           <>
-            <div className={`panel${settings.tab === 'browser' ? '' : ' is-active'}`}>
+            <div className={`panel${settings.tab === 'chat' ? ' is-active' : ''}`}>
               <Chat
                 settings={settings}
                 update={update}
@@ -260,6 +268,11 @@ export default function OverlayApp() {
                 notify={notify}
               />
             </div>
+            {settings.tab === 'docs' && (
+              <div className="panel is-active">
+                <Documents notify={notify} />
+              </div>
+            )}
             {/* Mounted on first use, then kept: nobody pays for a browser
                 session they never opened. */}
             {browserOpened && (

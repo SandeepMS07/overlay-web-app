@@ -21,8 +21,8 @@ export type Settings = {
    * asked to speak as "you" has no identity to anchor to and will invent one.
    */
   me: string;
-  /** Which top-level panel is showing: the assistant, or the browser. */
-  tab: 'chat' | 'browser';
+  /** Which top-level panel is showing. */
+  tab: 'chat' | 'browser' | 'docs';
   provider: ProviderId;
   /** The cloud provider to return to when the offline switch is turned off. */
   cloudProvider: ProviderId;

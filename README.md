@@ -37,6 +37,8 @@ something else already owns 3000.
   sends the question without you typing. See [Speech to text](#speech-to-text).
 - **Paste a screenshot** into the composer and ask about it — `⌘⇧⌃4` on macOS
   captures straight to the clipboard. See [Screenshots](#screenshots).
+- **A documents tab** that reads your PDFs in place, and shows the extracted
+  text the model actually works from. See [Documents](#documents).
 - **A browser tab** with its own tabs, address bar and history, sharing the
   window's capture exclusion. See [Browser](#browser).
 - **Copy any code block** with the button that appears on hover — the reason a
@@ -126,7 +128,16 @@ that toggle greys out. Speech to text is local too — see below.
 
 ## Documents
 
-The 📄 button in the composer opens the document panel. Add a PDF or a plain
+The **Docs** tab, or the 📄 button in the composer, opens the document list.
+
+Each document is stored twice: the extracted text, which is what the model
+reads, and the original file, which is what you read. Those are different
+things, and the difference is usually where a wrong answer comes from — a
+table that flattened into noise, a heading that swallowed the paragraph under
+it. Selecting a PDF renders it in Chromium's own viewer; the **Text** button
+beside it shows the extraction instead, so the two can be compared directly.
+
+Documents added before originals were kept show only the extracted text. Add a PDF or a plain
 text file (`.txt`, `.md`, `.csv`, `.json`) and its text is extracted **once, at
 upload**, then stored alongside your settings. Every question after that carries
 the documents as context, so you can ask "what did I do at my last job" and get
