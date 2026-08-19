@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Browser from '@/components/Browser';
 import Chat from '@/components/Chat';
 import { DEFAULT_SETTINGS, type Settings } from '@/lib/settings';
 import { PROVIDERS } from '@/lib/providers';
@@ -15,6 +16,7 @@ export default function OverlayApp() {
   const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null);
   const [focusToken, setFocusToken] = useState(0);
   const [dictateToken, setDictateToken] = useState(0);
+  const [browserOpened, setBrowserOpened] = useState(false);
 
   const interactiveRef = useRef(true);
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -44,6 +46,10 @@ export default function OverlayApp() {
     },
     [persist]
   );
+
+  useEffect(() => {
+    if (settings.tab === 'browser') setBrowserOpened(true);
+  }, [settings.tab]);
 
   // ------------------------------------------------------------------- boot
 
@@ -189,9 +195,23 @@ export default function OverlayApp() {
         onPointerDown={() => window.overlay?.focusWindow()}
       >
         <span className="grip">⋮⋮</span>
-        <span className="title">
-          <strong>{PROVIDERS[settings.provider].label}</strong>
-        </span>
+
+        <div className="tabs">
+          <button
+            className={`tab-pick${settings.tab !== 'browser' ? ' is-active' : ''}`}
+            onClick={() => update({ tab: 'chat' })}
+            title={`Assistant — ${PROVIDERS[settings.provider].label}`}
+          >
+            {PROVIDERS[settings.provider].label}
+          </button>
+          <button
+            className={`tab-pick${settings.tab === 'browser' ? ' is-active' : ''}`}
+            onClick={() => update({ tab: 'browser' })}
+            title="Browser"
+          >
+            Web
+          </button>
+        </div>
 
         <input
           className="slider"
@@ -226,14 +246,28 @@ export default function OverlayApp() {
       </header>
 
       <div className="body">
+        {/* Both panels stay mounted. Unmounting the assistant would abort a
+            reply still streaming in, and unmounting the browser would throw
+            away every logged-in page, the moment you looked at the other. */}
         {ready && (
-          <Chat
-            settings={settings}
-            update={update}
-            focusToken={focusToken}
-            dictateToken={dictateToken}
-            notify={notify}
-          />
+          <>
+            <div className={`panel${settings.tab === 'browser' ? '' : ' is-active'}`}>
+              <Chat
+                settings={settings}
+                update={update}
+                focusToken={focusToken}
+                dictateToken={dictateToken}
+                notify={notify}
+              />
+            </div>
+            {/* Mounted on first use, then kept: nobody pays for a browser
+                session they never opened. */}
+            {browserOpened && (
+              <div className={`panel${settings.tab === 'browser' ? ' is-active' : ''}`}>
+                <Browser notify={notify} />
+              </div>
+            )}
+          </>
         )}
       </div>
 

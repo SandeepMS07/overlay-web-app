@@ -21,6 +21,8 @@ export type Settings = {
    * asked to speak as "you" has no identity to anchor to and will invent one.
    */
   me: string;
+  /** Which top-level panel is showing: the assistant, or the browser. */
+  tab: 'chat' | 'browser';
   provider: ProviderId;
   /** The cloud provider to return to when the offline switch is turned off. */
   cloudProvider: ProviderId;
@@ -41,6 +43,7 @@ export const DEFAULT_SETTINGS: Settings = {
   // Blank by default: this is the one genuinely personal field in the file,
   // and nobody else's install should ship with a name in it.
   me: '',
+  tab: 'chat',
   provider: 'anthropic',
   cloudProvider: 'anthropic',
   models: {},

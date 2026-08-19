@@ -37,6 +37,8 @@ something else already owns 3000.
   sends the question without you typing. See [Speech to text](#speech-to-text).
 - **Paste a screenshot** into the composer and ask about it — `⌘⇧⌃4` on macOS
   captures straight to the clipboard. See [Screenshots](#screenshots).
+- **A browser tab** with its own tabs, address bar and history, sharing the
+  window's capture exclusion. See [Browser](#browser).
 - **Copy any code block** with the button that appears on hover — the reason a
   snippet is on screen is usually that it is about to be typed somewhere else.
 - **`⌘⇧A` from any app** reveals the overlay with the caret already in the
@@ -215,6 +217,40 @@ especially about your own history.
 
 The name is stored in `settings.json` in the app's data directory, which is not
 in the repository.
+
+## Browser
+
+The **Web** tab at the top of the window is a real browser: its own tab strip,
+address bar, back/forward, and anything typed that is not an address goes to a
+search. It exists so a site can sit inside the same capture-excluded window as
+everything else, rather than in a second window that a screen share would show.
+
+It is built on `<webview>` rather than a native `WebContentsView`, so the tab
+strip and switching stay ordinary React. A native view is a separate layer the
+main process has to position by hand on every resize and panel toggle, and none
+of that is worth it here.
+
+Pages load in a `persist:browser` session, kept apart from the app's own: logins
+survive a restart, and a site's cookies can never reach the app's requests.
+`will-attach-webview` strips the preload and forces `contextIsolation` on every
+guest, so a page cannot widen its own privileges by setting attributes.
+
+The user agent has the `Electron` and app tokens removed. That is not a
+disguise — the engine genuinely is this Chromium — but several large sites gate
+login behind a UA allowlist and serve "unsupported browser" to anything they do
+not recognise. Unmodified, `chatgpt.com` bounced straight to `/auth/login`;
+with the tokens removed it served the normal app.
+
+> **Google sign-in may refuse to work.** Google blocks OAuth in embedded
+> browser frames, and there is no flag that fixes it. Sign in with email and
+> password where a site offers it.
+
+One trap worth recording, because it costs an afternoon to find: bind the
+webview's `src` to the URL that `did-navigate` writes back, and every redirect
+becomes a navigation loop — state updates, React rewrites `src`, and the
+webview re-navigates on top of the redirect it was already following. It looks
+fine until an OAuth flow, which dies as `ERR_ABORTED`. `src` is set once at tab
+creation; everything after goes through `loadURL()`.
 
 ## Screenshots
 

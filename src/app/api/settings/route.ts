@@ -22,6 +22,7 @@ export async function PATCH(request: Request) {
   if (typeof body.webSearch === 'boolean') patch.webSearch = body.webSearch;
   if (typeof body.speakAsMe === 'boolean') patch.speakAsMe = body.speakAsMe;
   if (typeof body.me === 'string') patch.me = body.me.trim().slice(0, 80);
+  if (body.tab === 'chat' || body.tab === 'browser') patch.tab = body.tab;
   if (isProviderId(body.provider)) patch.provider = body.provider;
   // Only a cloud provider can be the fallback, or the toggle would flip local
   // to local and appear stuck.

@@ -276,8 +276,14 @@ function createWindow() {
       // Chromium throttles timers in unfocused windows, which would stall a
       // reply still streaming in while you work in another app.
       backgroundThrottling: false,
+      // The browser tab. <webview> keeps the tab strip, address bar and
+      // switching in React; the alternative, WebContentsView, is a native
+      // layer the main process has to position by hand on every resize.
+      webviewTag: true,
     },
   });
+
+  hardenWebviews(win.webContents);
 
   pinToAllSpaces();
   // Set before the first show, so the window is never captured even briefly.
@@ -456,12 +462,59 @@ function createTray() {
  * which in Electron denies everything unless a handler says otherwise. Only
  * audio is ever allowed — nothing here grants camera or geolocation.
  */
+/**
+ * The browser tab's session, kept separate from the app's own.
+ *
+ * `persist:` means logins survive a restart, which is the entire point — a
+ * browser you have to sign into every launch is not a browser. Keeping it out
+ * of the default session also means a site's cookies can never reach the
+ * app's own requests.
+ */
+const BROWSER_PARTITION = 'persist:browser';
+
+/**
+ * Chromium's own UA with the Electron and app tokens removed.
+ *
+ * Not a disguise: several large sites gate their login on a UA allowlist and
+ * serve a "browser not supported" page to anything unrecognised, so the
+ * unmodified string makes a site that works in Chrome fail here for no reason
+ * other than the name. The engine underneath genuinely is this Chromium.
+ */
+function browserUserAgent() {
+  return session.defaultSession
+    .getUserAgent()
+    .replace(/ (Electron|overlay-player)\/[^ ]+/g, '');
+}
+
 function configurePermissions() {
   const allowed = new Set(['media', 'audioCapture']);
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
     callback(allowed.has(permission));
   });
   session.defaultSession.setPermissionCheckHandler((_wc, permission) => allowed.has(permission));
+
+  // Same policy for pages opened in the browser tab: a site may ask for the
+  // microphone (ChatGPT voice), nothing else is granted.
+  const browser = session.fromPartition(BROWSER_PARTITION);
+  browser.setUserAgent(browserUserAgent());
+  browser.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(allowed.has(permission));
+  });
+  browser.setPermissionCheckHandler((_wc, permission) => allowed.has(permission));
+}
+
+/**
+ * Anything a <webview> loads is somebody else's code, so the attach event is
+ * where its privileges are stripped — a page cannot grant itself more by
+ * setting attributes, because these overwrite whatever the tag asked for.
+ */
+function hardenWebviews(contents) {
+  contents.on('will-attach-webview', (_event, webPreferences, params) => {
+    delete webPreferences.preload;
+    webPreferences.nodeIntegration = false;
+    webPreferences.contextIsolation = true;
+    params.partition = BROWSER_PARTITION;
+  });
 }
 
 /**
