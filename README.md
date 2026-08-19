@@ -234,6 +234,39 @@ re-wrapped per provider. Local models work too, provided the one you have pulled
 can see: `gemma3:12b`, the default here, can. A text-only local model will
 simply ignore the image.
 
+## When a provider wobbles
+
+A free tier is capacity-shared, so a request can come back with 503 "high
+demand" or a 429 throttle even though the key, the credit and the model are all
+fine. Measured on `gemini-3.7-flash` in one afternoon: three 503s in a row,
+then a normal answer on the next attempt.
+
+Those are retried automatically — up to three attempts, with full jitter on the
+backoff so every client dropped in the same spike does not come back at the
+same instant and re-create it. Only 408/429/500/502/503/504 are retried; a 400
+or a 401 fails identically the second time, so retrying would just double the
+bill.
+
+The retry only covers a failure that happens **before the first token**. Once
+text has reached the screen the request cannot be replayed — the retry would
+repeat the opening of the answer — so a mid-stream failure is reported instead.
+Claude is left unwrapped, since the Anthropic SDK already retries internally.
+
+If a provider is slow rather than failing, the model matters more than the
+retry. Same afternoon, same key, one round-trip each:
+
+| Model | Latency |
+| --- | --- |
+| `gemini-flash-lite-latest` | 0.7s |
+| `gemini-3.5-flash-lite` | 0.8s |
+| `gemini-3.5-flash` | 1.4s |
+| `gemini-3.7-flash` | 1.6s |
+| `gemini-3.6-flash` | 12.8s |
+| `gemini-flash-latest` | 54.5s |
+
+The `-latest` aliases are not a safe default: they follow whatever Google has
+just promoted, which is also whatever everyone else has just started hammering.
+
 ## Web search
 
 The 🌐 toggle in the composer lets the model search before answering. It is off

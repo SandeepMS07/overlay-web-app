@@ -148,6 +148,58 @@ function textOf(message: ChatMessage): string {
   return message.images?.length ? IMAGE_ONLY_PROMPT : message.content;
 }
 
+/** A provider failure that still knows its HTTP status. */
+export class ProviderError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(message);
+    this.name = 'ProviderError';
+  }
+}
+
+/**
+ * Statuses worth trying again. All of them mean "not now" rather than
+ * "not ever" — a 400 or a 401 would fail identically the second time and
+ * retrying would only double the bill.
+ */
+const TRANSIENT = new Set([408, 429, 500, 502, 503, 504]);
+
+const RETRIES = 3;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Retries a stream that failed before producing anything.
+ *
+ * The `produced` guard is the whole subtlety: once a token has reached the
+ * screen the request cannot be replayed, because the retry would repeat the
+ * opening of the answer. So this only covers failures that happen on the way
+ * up — which is exactly where the capacity errors live.
+ *
+ * Full jitter on the backoff, not a fixed delay: every client that a provider
+ * dropped during a spike would otherwise come back at the same instant and
+ * re-create the spike.
+ */
+async function* withRetry(make: () => AsyncGenerator<string>): AsyncGenerator<string> {
+  for (let attempt = 0; ; attempt++) {
+    let produced = false;
+    try {
+      for await (const chunk of make()) {
+        produced = true;
+        yield chunk;
+      }
+      return;
+    } catch (err) {
+      if (produced || isAbort(err)) throw err;
+      const status = err instanceof ProviderError ? err.status : 0;
+      if (attempt >= RETRIES - 1 || !TRANSIENT.has(status)) throw err;
+      await sleep(Math.random() * 400 * 2 ** attempt);
+    }
+  }
+}
+
 // ---------------------------------------------------------------- Anthropic
 
 /**
@@ -304,7 +356,9 @@ async function* streamOpenAI(
     }),
   });
 
-  if (!res.ok || !res.body) throw new Error(await describeHttpError(res, label));
+  if (!res.ok || !res.body) {
+    throw new ProviderError(await describeHttpError(res, label), res.status);
+  }
 
   for await (const data of sseData(res.body)) {
     if (data === '[DONE]') return;
@@ -393,7 +447,9 @@ async function* streamGemini(opts: StreamOptions): AsyncGenerator<string> {
     }),
   });
 
-  if (!res.ok || !res.body) throw new Error(await describeHttpError(res, 'Gemini'));
+  if (!res.ok || !res.body) {
+    throw new ProviderError(await describeHttpError(res, 'Gemini'), res.status);
+  }
 
   type GeminiChunk = { candidates?: { content?: { parts?: { text?: string }[] } }[] };
   for await (const data of sseData(res.body)) {
@@ -477,8 +533,10 @@ export function isAbort(err: unknown): boolean {
 }
 
 export function streamChat(provider: ProviderId, opts: StreamOptions): AsyncGenerator<string> {
+  // Claude is not wrapped: the Anthropic SDK already retries internally, and
+  // streamAnthropic has its own fallback path on top of that.
   if (provider === 'anthropic') return streamAnthropic(opts);
-  if (provider === 'openai') return streamOpenAI(opts);
-  if (provider === 'local') return streamLocal(opts);
-  return streamGemini(opts);
+  if (provider === 'openai') return withRetry(() => streamOpenAI(opts));
+  if (provider === 'local') return withRetry(() => streamLocal(opts));
+  return withRetry(() => streamGemini(opts));
 }
