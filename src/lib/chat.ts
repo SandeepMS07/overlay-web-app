@@ -1,14 +1,24 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { ChatMessage, ProviderId } from '@/lib/providers';
 
-export const SYSTEM_PROMPT = [
-  'You are a fast assistant living in a small always-on-top overlay window on the',
-  "user's desktop. Answer the question directly: lead with the answer, then add only",
+/**
+ * How to write, with nothing about who is writing. First-person mode replaces
+ * the identity line below but keeps this — an answer given as yourself still
+ * has to fit the window.
+ */
+const STYLE_NOTE = [
+  'Answer the question directly: lead with the answer, then add only',
   'the detail that changes what the reader would do next.',
   'The window is small, so keep responses short enough to read without scrolling —',
   'short paragraphs, no headers unless the answer genuinely is a list, and minimal code.',
   'If you are unsure of something, say so plainly rather than padding the answer.',
 ].join(' ');
+
+const ASSISTANT_NOTE =
+  'You are a fast assistant living in a small always-on-top overlay window on the ' +
+  "user's desktop.";
+
+export const SYSTEM_PROMPT = `${ASSISTANT_NOTE} ${STYLE_NOTE}`;
 
 const MAX_TOKENS = 8192;
 
@@ -24,6 +34,8 @@ type StreamOptions = {
   brief?: boolean;
   /** Answer in the first person as the user. */
   speakAsMe?: boolean;
+  /** The user's own name, for first-person mode. */
+  me?: string;
   /**
    * Passed straight through to the endpoint. Ollama uses it to switch a
    * reasoning model's thinking off — 'none' is the only value that works, and
@@ -43,18 +55,37 @@ const BREVITY_NOTE =
   'horizontal rules, or bold section titles — plain sentences and, at most, a short list.';
 
 /**
- * First-person mode. The anti-fabrication clause is the important half: without
- * it a model asked to speak as someone will invent plausible detail, and a
- * confident invention about your own history is worse than an admission.
+ * First-person mode.
+ *
+ * The name is stated outright rather than left to be retrieved. Told to speak
+ * as "the user" with no name in the prompt, a model does not say it does not
+ * know its own name — it takes the most name-shaped token nearby, which in
+ * testing meant answering with the name of one of the user's own projects.
+ * Retrieval cannot fix that: "what is your name" is a poor search query, and
+ * identity has to be right on the first token of every answer, not only when
+ * the right passage happens to rank.
+ *
+ * The anti-fabrication clause is the other half. A model asked to speak as
+ * someone will invent plausible detail, and a confident invention about your
+ * own history is worse than an admission.
  */
-const PERSONA_NOTE =
-  'Answer in the first person as the user themselves, treating the background material ' +
-  'as your own experience: "I built…", never "Sandeep built…" and never "the documents say". ' +
-  'Lead with the direct answer in one or two sentences. ' +
-  'Never invent a fact about yourself. Contact details, employers, dates, numbers, ' +
-  'links and names must be quoted exactly from the background material and nowhere else. ' +
-  'If the material does not contain the answer, say "I would need to check that" — ' +
-  'a wrong detail stated confidently is far worse than admitting you do not have it.';
+function personaNote(name?: string): string {
+  const who = (name ?? '').trim();
+  return [
+    who
+      ? `Your name is ${who}. You are a person, not an AI assistant, and asked who ` +
+        'you are you give that name and nothing about being a model.'
+      : 'You are the user themselves, not an AI assistant. Your name appears in the ' +
+        'background material — use that one and never invent one.',
+    'Answer in the first person, treating the background material as your own experience: ' +
+      '"I built…", never "he built…" and never "the documents say".',
+    'Lead with the direct answer in one or two sentences.',
+    'Never invent a fact about yourself. Contact details, employers, dates, numbers, ' +
+      'links and names must be quoted exactly from the background material and nowhere else. ' +
+      'If the material does not contain the answer, say "I would need to check that" — ' +
+      'a wrong detail stated confidently is far worse than admitting you do not have it.',
+  ].join(' ');
+}
 
 const WEB_SEARCH_NOTE =
   'You can search the web. Do so when the question depends on current information ' +
@@ -62,8 +93,11 @@ const WEB_SEARCH_NOTE =
 
 function systemPrompt(opts: StreamOptions): string {
   return [
-    SYSTEM_PROMPT,
-    opts.speakAsMe ? PERSONA_NOTE : '',
+    // Mutually exclusive on purpose. Left in, "you are an assistant" and "you
+    // are the user" are two identities in one prompt, and the model picks —
+    // usually the assistant one, because that is what it was trained to be.
+    opts.speakAsMe ? personaNote(opts.me) : ASSISTANT_NOTE,
+    STYLE_NOTE,
     opts.brief ? BREVITY_NOTE : '',
     opts.webSearch ? WEB_SEARCH_NOTE : '',
     opts.documents ?? '',
@@ -80,6 +114,40 @@ function systemPrompt(opts: StreamOptions): string {
  */
 const OPENAI_SEARCH_MODEL = process.env.OPENAI_SEARCH_MODEL || 'gpt-5-search-api';
 
+/**
+ * Attached images.
+ *
+ * All three hosted providers accept the same bytes and disagree only about the
+ * envelope, so the data URL is split once here and re-wrapped per provider
+ * below. Anything that is not a base64 image data URL is dropped rather than
+ * forwarded — the route validates too, but a malformed URL reaching a provider
+ * turns a paste into an opaque 400.
+ */
+function splitDataUrl(url: string): { mediaType: string; data: string } | null {
+  const match = /^data:(image\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/i.exec(url.trim());
+  return match ? { mediaType: match[1].toLowerCase(), data: match[2] } : null;
+}
+
+function imagesOf(message: ChatMessage): { mediaType: string; data: string }[] {
+  return (message.images ?? [])
+    .map(splitDataUrl)
+    .filter((img): img is { mediaType: string; data: string } => img !== null);
+}
+
+/**
+ * The text sent when a screenshot is pasted with nothing typed. Something has
+ * to be there — every provider rejects an image-only turn with an empty text
+ * block — and in an overlay used during a call, "answer what is on screen" is
+ * what the paste meant.
+ */
+const IMAGE_ONLY_PROMPT = 'Answer the question in this screenshot.';
+
+function textOf(message: ChatMessage): string {
+  const text = message.content.trim();
+  if (text) return message.content;
+  return message.images?.length ? IMAGE_ONLY_PROMPT : message.content;
+}
+
 // ---------------------------------------------------------------- Anthropic
 
 /**
@@ -93,7 +161,22 @@ async function* runAnthropic(opts: StreamOptions, withFallbacks: boolean): Async
     model: opts.model,
     max_tokens: MAX_TOKENS,
     system: systemPrompt(opts),
-    messages: opts.messages.map((m) => ({ role: m.role, content: m.content })),
+    messages: opts.messages.map((m) => {
+      const images = imagesOf(m);
+      if (images.length === 0) return { role: m.role, content: m.content };
+      // Images before text: Claude reads a question about a picture better
+      // when it has already seen the picture.
+      return {
+        role: m.role,
+        content: [
+          ...images.map((img) => ({
+            type: 'image',
+            source: { type: 'base64', media_type: img.mediaType, data: img.data },
+          })),
+          { type: 'text', text: textOf(m) },
+        ],
+      };
+    }),
     output_config: { effort: 'low' },
     // Server-side tool: Anthropic runs the search, so there is no tool loop to
     // implement here. Non-text blocks in the stream are simply not yielded.
@@ -199,7 +282,25 @@ async function* streamOpenAI(
       stream: true,
       max_completion_tokens: MAX_TOKENS,
       ...(opts.reasoningEffort ? { reasoning_effort: opts.reasoningEffort } : {}),
-      messages: [{ role: 'system', content: systemPrompt(opts) }, ...opts.messages],
+      messages: [
+        { role: 'system', content: systemPrompt(opts) },
+        // Mapped rather than spread: ChatMessage carries an `images` field that
+        // the endpoint does not know, and a stray key is a 400.
+        ...opts.messages.map((m) => {
+          const images = imagesOf(m);
+          if (images.length === 0) return { role: m.role, content: m.content };
+          return {
+            role: m.role,
+            content: [
+              { type: 'text', text: textOf(m) },
+              ...images.map((img) => ({
+                type: 'image_url',
+                image_url: { url: `data:${img.mediaType};base64,${img.data}` },
+              })),
+            ],
+          };
+        }),
+      ],
     }),
   });
 
@@ -281,7 +382,12 @@ async function* streamGemini(opts: StreamOptions): AsyncGenerator<string> {
       // Gemini calls the assistant role "model".
       contents: opts.messages.map((m) => ({
         role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }],
+        parts: [
+          ...imagesOf(m).map((img) => ({
+            inline_data: { mime_type: img.mediaType, data: img.data },
+          })),
+          { text: textOf(m) },
+        ],
       })),
       generationConfig: { maxOutputTokens: MAX_TOKENS },
     }),

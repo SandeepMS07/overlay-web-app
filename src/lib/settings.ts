@@ -16,6 +16,11 @@ export type Settings = {
   webSearch: boolean;
   /** Answer in the first person as the user, from their own documents. */
   speakAsMe: boolean;
+  /**
+   * The user's own name, used only by first-person mode. Without it a model
+   * asked to speak as "you" has no identity to anchor to and will invent one.
+   */
+  me: string;
   provider: ProviderId;
   /** The cloud provider to return to when the offline switch is turned off. */
   cloudProvider: ProviderId;
@@ -33,6 +38,9 @@ export const DEFAULT_SETTINGS: Settings = {
   // in a scratch overlay do not need it.
   webSearch: false,
   speakAsMe: false,
+  // Blank by default: this is the one genuinely personal field in the file,
+  // and nobody else's install should ship with a name in it.
+  me: '',
   provider: 'anthropic',
   cloudProvider: 'anthropic',
   models: {},

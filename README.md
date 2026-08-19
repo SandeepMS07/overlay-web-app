@@ -35,6 +35,8 @@ something else already owns 3000.
   before answering. See [Web search](#web-search).
 - **Ask by voice** — `⌘⌥S` records the default microphone, transcribes it, and
   sends the question without you typing. See [Speech to text](#speech-to-text).
+- **Paste a screenshot** into the composer and ask about it — `⌘⇧⌃4` on macOS
+  captures straight to the clipboard. See [Screenshots](#screenshots).
 - **`⌘⇧A` from any app** reveals the overlay with the caret already in the
   question box.
 - **Always on top**, above every app including full-screen VS Code, Chrome and
@@ -191,13 +193,44 @@ text and its vectors sit unencrypted in the app's data directory, next to
 A checkbox in the key panel switches answers to the first person, drawing on
 your own documents as your own experience — "I built…", not "Sandeep built…".
 
-The anti-fabrication rule in that prompt is the half that matters. Asked to
-speak as someone, a model will invent plausible detail: in testing it produced a
-confident, entirely fictional email address and claimed to have no GitHub
-account. The prompt now requires contact details, employers, dates, numbers and
-links to be quoted from the material and nowhere else, and to answer "I would
-need to check that" otherwise. A wrong detail stated confidently is worse than
-an admission — especially about your own history.
+Fill in **My name** underneath. It is not decoration: without a name in the
+prompt, "answer as the user" leaves the model with an identity-shaped hole, and
+it fills the hole from whatever is nearby. In testing it introduced itself with
+the name of one of the user's own projects — a product name sitting 58 times in
+the indexed documents was the most name-shaped thing in reach. Retrieval cannot
+rescue this, because "what is your name" is a hopeless search query and identity
+has to hold on every answer, not only when the right passage ranks. The name is
+stated outright instead, and the assistant framing is dropped for that request
+rather than left to argue with the persona.
+
+The anti-fabrication rule is the other half. Asked to speak as someone, a model
+will invent plausible detail: in testing it produced a confident, entirely
+fictional email address and claimed to have no GitHub account. The prompt now
+requires contact details, employers, dates, numbers and links to be quoted from
+the material and nowhere else, and to answer "I would need to check that"
+otherwise. A wrong detail stated confidently is worse than an admission —
+especially about your own history.
+
+The name is stored in `settings.json` in the app's data directory, which is not
+in the repository.
+
+## Screenshots
+
+Paste an image into the question box — `⌘V` after `⌘⇧⌃4`, or any copied image —
+and it goes to the model with your question. Up to four ride along with one
+turn; the ✕ on a thumbnail drops it. Pasting with nothing typed asks the model
+to answer whatever question is in the picture, which is usually the point.
+
+Images are downscaled to a 1568px long edge and re-encoded as JPEG before they
+leave the renderer. A Retina screenshot is several megabytes and base64 adds a
+third on top, while every provider downscales past roughly that size anyway — so
+the extra pixels would buy nothing but upload latency.
+
+All three hosted providers take the same bytes in different envelopes
+(`source.base64`, `image_url`, `inline_data`), so the data URL is split once and
+re-wrapped per provider. Local models work too, provided the one you have pulled
+can see: `gemma3:12b`, the default here, can. A text-only local model will
+simply ignore the image.
 
 ## Web search
 
@@ -346,7 +379,7 @@ src/app/api/keys/      Stores API keys; reports presence, never values
 src/app/api/docs/      Reference documents: add, list, remove
 src/app/api/settings/  Window and provider preferences
 src/app/api/transcribe/ Speech to text for the dictation button
-src/lib/chat.ts        Per-provider streaming, web search, document context
+src/lib/chat.ts        Per-provider streaming, web search, images, document context
 src/lib/docs.ts        Document storage, text extraction, retrieval
 src/lib/embeddings.ts  Local embeddings and cosine similarity via Ollama
 src/lib/providers.ts   Provider registry and defaults

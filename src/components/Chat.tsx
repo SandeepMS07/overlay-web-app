@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PROVIDER_IDS, PROVIDERS, type ChatMessage, type ProviderId } from '@/lib/providers';
 import type { Settings } from '@/lib/settings';
+import { attachmentsFrom } from '@/lib/image';
 import { useDictation } from '@/lib/useDictation';
 import { useListening } from '@/lib/useListening';
 // Type-only: lib/docs.ts is server-side and pulls in node:fs at runtime.
@@ -20,6 +21,9 @@ import {
   StopIcon,
   TrashIcon,
 } from '@/components/Icons';
+
+/** How many pasted images ride along with one question. */
+const MAX_SHOTS = 4;
 
 type Props = {
   settings: Settings;
@@ -41,6 +45,8 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
   const [keyDraft, setKeyDraft] = useState('');
   const [docs, setDocs] = useState<DocMeta[]>([]);
   const [docsOpen, setDocsOpen] = useState(false);
+  /** Screenshots pasted into the composer, waiting to go with the next turn. */
+  const [shots, setShots] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
 
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -152,11 +158,18 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
    */
   const send = useCallback(async (override?: string) => {
     const text = (override ?? draft).trim();
-    if (!text || streaming) return;
+    // A pasted screenshot on its own is a complete question, so an empty box is
+    // only a reason to stop when there is nothing attached either.
+    const attached = shots;
+    if ((!text && attached.length === 0) || streaming) return;
 
-    const next: ChatMessage[] = [...messages, { role: 'user', content: text }];
+    const next: ChatMessage[] = [
+      ...messages,
+      { role: 'user', content: text, ...(attached.length ? { images: attached } : {}) },
+    ];
     setMessages(next);
     setDraft('');
+    setShots([]);
     setPartial('');
     setStreaming(true);
 
@@ -175,6 +188,7 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
           messages: next,
           webSearch: settings.webSearch,
           speakAsMe: settings.speakAsMe,
+          me: settings.me,
         }),
       });
 
@@ -183,6 +197,7 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
         notify(data.error ?? 'The request failed.', true);
         setMessages(messages); // roll back the unanswered turn
         setDraft(text);
+        setShots(attached);
         return;
       }
 
@@ -224,6 +239,7 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
         notify('Could not reach the local backend.', true);
         setMessages(messages);
         setDraft(text);
+        setShots(attached);
       }
     } finally {
       abortRef.current = null;
@@ -235,11 +251,38 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
     messages,
     notify,
     provider,
+    settings.me,
     settings.models,
     settings.speakAsMe,
     settings.webSearch,
+    shots,
     streaming,
   ]);
+
+  /**
+   * Pasting a screenshot. ⌘⇧⌃4 on macOS puts the capture straight on the
+   * clipboard, so this is the whole gesture: grab, paste, ask.
+   *
+   * The event is only swallowed when an image actually came through — a normal
+   * text paste has to keep working, and a clipboard can hold both.
+   */
+  const paste = useCallback(
+    (event: React.ClipboardEvent) => {
+      const hasImage = Array.from(event.clipboardData.items).some(
+        (item) => item.kind === 'file' && item.type.startsWith('image/')
+      );
+      if (!hasImage) return;
+      event.preventDefault();
+
+      void attachmentsFrom(event.clipboardData)
+        .then((added) => {
+          if (added.length === 0) return;
+          setShots((current) => [...current, ...added].slice(-MAX_SHOTS));
+        })
+        .catch(() => notify('Could not read that image.', true));
+    },
+    [notify]
+  );
 
   const stop = useCallback(() => abortRef.current?.abort(), []);
 
@@ -326,7 +369,12 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
         )}
 
         {messages.map((message, index) => (
-          <Bubble key={index} role={message.role} content={message.content} />
+          <Bubble
+            key={index}
+            role={message.role}
+            content={message.content}
+            images={message.images}
+          />
         ))}
 
         {partial && <Bubble role="assistant" content={partial} />}
@@ -459,6 +507,20 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
             <span>Answer in the first person, as me, from my documents</span>
           </label>
 
+          {settings.speakAsMe && (
+            <label className="keys-field">
+              <span>My name</span>
+              <input
+                className="field"
+                value={settings.me}
+                placeholder="the name to answer to"
+                onChange={(e) => update({ me: e.target.value })}
+                spellCheck={false}
+                autoComplete="off"
+              />
+            </label>
+          )}
+
           <label className="keys-field keys-check">
             <input
               type="checkbox"
@@ -486,6 +548,23 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
         </div>
       )}
 
+      {shots.length > 0 && (
+        <div className="shots">
+          {shots.map((src, index) => (
+            <div key={index} className="shot">
+              <img src={src} alt={`Pasted image ${index + 1}`} />
+              <button
+                className="shot-remove"
+                onClick={() => setShots((current) => current.filter((_, i) => i !== index))}
+                title="Remove"
+              >
+                <CloseIcon />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="composer">
         <textarea
           ref={inputRef}
@@ -504,7 +583,7 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
               : dictation.state === 'transcribing'
                 ? 'Transcribing…'
                 : hasKey
-                  ? 'Ask a question, or press ⌘⌥S to speak…'
+                  ? 'Ask, paste a screenshot, or press ⌘⌥S to speak…'
                   : 'Add an API key to start'
           }
           onChange={(e) => setDraft(e.target.value)}
@@ -514,6 +593,7 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
               void send();
             }
           }}
+          onPaste={paste}
           onPointerDown={() => window.overlay?.focusWindow()}
           spellCheck={false}
         />
@@ -601,7 +681,7 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
             <button
               className="btn is-active"
               onClick={() => void send()}
-              disabled={!draft.trim()}
+              disabled={!draft.trim() && shots.length === 0}
               title="Send (Enter)"
             >
               <SendIcon />
@@ -622,11 +702,22 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
  * these constructs are understood — anything else renders as the literal text
  * the model wrote, which is the safe failure.
  */
-function Bubble({ role, content }: { role: ChatMessage['role']; content: string }) {
+function Bubble({
+  role,
+  content,
+  images,
+}: {
+  role: ChatMessage['role'];
+  content: string;
+  images?: string[];
+}) {
   const segments = content.split(/```/);
 
   return (
     <div className={`bubble is-${role}`}>
+      {images?.map((src, index) => (
+        <img key={`i${index}`} className="bubble-image" src={src} alt="Pasted screenshot" />
+      ))}
       {segments.map((segment, index) =>
         index % 2 === 1 ? (
           <pre key={index} className="code">

@@ -72,4 +72,9 @@ export function isProviderId(value: unknown): value is ProviderId {
 export type ChatMessage = {
   role: 'user' | 'assistant';
   content: string;
+  /**
+   * Pasted screenshots as `data:image/…;base64,…` URLs. Absent on almost every
+   * message, so the wire format stays a plain string in the common case.
+   */
+  images?: string[];
 };

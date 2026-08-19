@@ -12,7 +12,23 @@ type ChatRequest = {
   messages?: ChatMessage[];
   webSearch?: boolean;
   speakAsMe?: boolean;
+  me?: string;
 };
+
+/** Roughly 4 MB of decoded image, which is every provider's per-image ceiling. */
+const MAX_IMAGE_CHARS = 6_000_000;
+const MAX_IMAGES = 4;
+
+/** Keep only well-formed base64 image data URLs, and not too many of them. */
+function cleanImages(images: unknown): string[] | undefined {
+  if (!Array.isArray(images)) return undefined;
+  const kept = images
+    .filter((url): url is string => typeof url === 'string')
+    .filter((url) => /^data:image\/(png|jpe?g|gif|webp);base64,[A-Za-z0-9+/=]+$/i.test(url))
+    .filter((url) => url.length <= MAX_IMAGE_CHARS)
+    .slice(0, MAX_IMAGES);
+  return kept.length ? kept : undefined;
+}
 
 /**
  * Streams a reply as newline-delimited JSON events so the client can tell text
@@ -26,9 +42,9 @@ export async function POST(request: Request) {
     return jsonError('Pick a provider first.', 400);
   }
 
-  const messages = (body.messages ?? []).filter(
-    (m) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string'
-  );
+  const messages = (body.messages ?? [])
+    .filter((m) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+    .map((m) => ({ role: m.role, content: m.content, images: cleanImages(m.images) }));
   if (messages.length === 0) {
     return jsonError('Nothing to send.', 400);
   }
@@ -48,6 +64,7 @@ export async function POST(request: Request) {
   // A local model has no internet, so the flag is meaningless there.
   const webSearch = body.webSearch === true && !PROVIDERS[body.provider].offline;
   const speakAsMe = body.speakAsMe === true;
+  const me = typeof body.me === 'string' ? body.me.trim().slice(0, 80) : '';
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream<Uint8Array>({
@@ -63,6 +80,7 @@ export async function POST(request: Request) {
           documents,
           webSearch,
           speakAsMe,
+          me,
           signal: request.signal,
         })) {
           send({ type: 'delta', text });
