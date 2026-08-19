@@ -446,18 +446,27 @@ export async function describeHttpError(res: Response, label: string): Promise<s
   const message = parsed?.error?.message;
   const code = parsed?.error?.code ?? parsed?.error?.type ?? '';
 
+  const outOfCredit =
+    `Your ${label} account is out of credit. ` +
+    `Add billing on the provider's dashboard, or switch to a local model.`;
+
   if (res.status === 401 || res.status === 403) {
+    // A disabled billing account is a 403 on Google, and "check your key" would
+    // send the user to look at a key that is perfectly valid.
+    if (/billing|payment|disabled/i.test(message ?? '')) return outOfCredit;
     return `${label} rejected the API key (${res.status}). Check it in settings.`;
   }
   if (res.status === 404) {
     return `${label} does not recognise that model name.`;
   }
   if (res.status === 429) {
-    // An exhausted balance also comes back as 429, but "wait a moment" is the
-    // wrong advice for it — no amount of waiting adds credit.
-    if (/insufficient_quota|billing|credit/i.test(`${code} ${message ?? ''}`)) {
-      return `Your ${label} account is out of credit. Add billing on the provider's dashboard, or switch to a local model.`;
-    }
+    // An exhausted balance also comes back as 429, so the two have to be told
+    // apart — but only by the machine-readable code, never by the prose.
+    // Google's free-tier rate limit says "check your plan and billing details"
+    // and means "wait a minute"; matching the word `billing` in a message
+    // turned every free-tier throttle into "you are out of credit", which sent
+    // people to a billing page to fix a problem that clears itself.
+    if (/insufficient_quota/i.test(code)) return outOfCredit;
     return `${label} rate limit reached. Wait a moment and try again.`;
   }
   return message ? `${label}: ${message}` : `${label} request failed (${res.status}).`;
