@@ -436,6 +436,15 @@ body {
   background: rgba(255, 255, 255, 0.08);
 }
 
+/* This window is often only a few hundred pixels wide, and a PDF squeezed into
+   what is left beside the list is unreadable. Below this width, opening a
+   document gives it everything; the ✕ in its header goes back to the list. */
+@media (max-width: 620px) {
+  .docs.is-reading .docs-list {
+    display: none;
+  }
+}
+
 /* ------------------------------------------------------------------- chat */
 
 .chat {

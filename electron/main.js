@@ -280,6 +280,12 @@ function createWindow() {
       // switching in React; the alternative, WebContentsView, is a native
       // layer the main process has to position by hand on every resize.
       webviewTag: true,
+      // Chromium's PDF viewer is built as an internal plugin, and Electron
+      // turns plugins off by default — so a PDF in an <iframe> renders as a
+      // blank rectangle with no error anywhere. NPAPI and PPAPI are long gone,
+      // so in a current Electron this flag buys the PDF viewer and nothing
+      // else.
+      plugins: true,
     },
   });
 
@@ -528,6 +534,9 @@ function hardenWebviews(contents) {
     delete webPreferences.preload;
     webPreferences.nodeIntegration = false;
     webPreferences.contextIsolation = true;
+    // Same reason as the window above: without it a PDF opened in the browser
+    // tab is a blank page.
+    webPreferences.plugins = true;
     params.partition = BROWSER_PARTITION;
   });
 }

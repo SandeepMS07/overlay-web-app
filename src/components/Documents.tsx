@@ -5,6 +5,15 @@ import { CloseIcon, DocIcon, PlusIcon, TrashIcon } from '@/components/Icons';
 import type { DocMeta } from '@/lib/docs';
 
 /**
+ * Newest first. The index is append-ordered, so a fresh upload lands at the
+ * bottom of a list that is usually taller than the window — you add a file and
+ * nothing appears to happen.
+ */
+function newestFirst(docs: DocMeta[]): DocMeta[] {
+  return [...docs].sort((a, b) => b.addedAt.localeCompare(a.addedAt));
+}
+
+/**
  * The documents the assistant answers from, and a reader for them.
  *
  * Two views of the same file, because they are genuinely different things: the
@@ -28,7 +37,7 @@ export default function Documents({
   const refresh = useCallback(async () => {
     try {
       const data = (await fetch('/api/docs').then((r) => r.json())) as { docs?: DocMeta[] };
-      setDocs(data.docs ?? []);
+      setDocs(newestFirst(data.docs ?? []));
     } catch {
       /* the panel simply stays empty */
     }
@@ -66,10 +75,19 @@ export default function Documents({
       const form = new FormData();
       for (const file of Array.from(files)) form.append('file', file);
       setBusy(true);
+      const before = new Set(docs.map((d) => d.id));
       try {
         const res = await fetch('/api/docs', { method: 'POST', body: form });
         const data = (await res.json()) as { docs?: DocMeta[]; error?: string; warning?: string };
-        setDocs(data.docs ?? []);
+        const next = newestFirst(data.docs ?? []);
+        setDocs(next);
+        // Open what was just added. Otherwise the reader keeps showing whatever
+        // was there before, and an upload looks like it did nothing.
+        const added = next.find((d) => !before.has(d.id));
+        if (added) {
+          setSelected(added.id);
+          setShowText(false);
+        }
         if (data.error) notify(data.error, true);
         else if (data.warning) notify(data.warning, true);
         else notify(`Added ${files.length} document${files.length > 1 ? 's' : ''}.`);
@@ -79,7 +97,7 @@ export default function Documents({
         setBusy(false);
       }
     },
-    [notify]
+    [docs, notify]
   );
 
   const remove = useCallback(
@@ -87,7 +105,7 @@ export default function Documents({
       try {
         const res = await fetch(`/api/docs?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
         const data = (await res.json()) as { docs?: DocMeta[] };
-        setDocs(data.docs ?? []);
+        setDocs(newestFirst(data.docs ?? []));
         setSelected((current) => (current === id ? null : current));
       } catch {
         notify('Could not remove that document.', true);
@@ -102,7 +120,7 @@ export default function Documents({
       const data = (await fetch('/api/docs', { method: 'PUT' }).then((r) => r.json())) as {
         docs?: DocMeta[];
       };
-      setDocs(data.docs ?? []);
+      setDocs(newestFirst(data.docs ?? []));
       const chunks = (data.docs ?? []).reduce((sum, d) => sum + (d.chunks ?? 0), 0);
       notify(`Re-indexed ${data.docs?.length ?? 0} documents into ${chunks} chunks.`);
     } catch {
@@ -115,7 +133,7 @@ export default function Documents({
   const totalChunks = docs.reduce((sum, d) => sum + (d.chunks ?? 0), 0);
 
   return (
-    <div className="docs">
+    <div className={`docs${doc ? ' is-reading' : ''}`}>
       <div className="docs-list">
         <div className="docs-head">
           <strong>{docs.length} document{docs.length === 1 ? '' : 's'}</strong>
