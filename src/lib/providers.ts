@@ -60,13 +60,33 @@ export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
   },
 };
 
-export const PROVIDER_IDS = Object.keys(PROVIDERS) as ProviderId[];
+/**
+ * Whether the on-device provider is offered at all.
+ *
+ * A build meant for other people leaves it out. Running it needs Ollama
+ * installed and an 8 GB model pulled, and a provider that can only ever answer
+ * "No local model server on 127.0.0.1:11434" is worse than one that is not
+ * there — it reads as a broken app rather than a missing prerequisite.
+ *
+ * Set at build time: NEXT_PUBLIC_ENABLE_LOCAL=0 npm run build.
+ */
+export const LOCAL_ENABLED = process.env.NEXT_PUBLIC_ENABLE_LOCAL !== '0';
+
+export const PROVIDER_IDS = (Object.keys(PROVIDERS) as ProviderId[]).filter(
+  (id) => LOCAL_ENABLED || !PROVIDERS[id].offline
+);
 
 /** The providers that talk to somebody else's server. */
 export const CLOUD_PROVIDER_IDS = PROVIDER_IDS.filter((id) => !PROVIDERS[id].offline);
 
+/**
+ * Also the gate on the server: the chat and settings routes both validate
+ * through this, so a disabled provider cannot be reached by hand-writing a
+ * request either.
+ */
 export function isProviderId(value: unknown): value is ProviderId {
-  return typeof value === 'string' && value in PROVIDERS;
+  if (typeof value !== 'string' || !(value in PROVIDERS)) return false;
+  return LOCAL_ENABLED || !PROVIDERS[value as ProviderId].offline;
 }
 
 export type ChatMessage = {

@@ -2,6 +2,7 @@ node_modules/
 .next/
 .electron-resources/
 release/
+release-share/
 build/icon.png
 build/trayTemplate.png
 build/trayTemplate@2x.png

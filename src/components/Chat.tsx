@@ -1,7 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { PROVIDER_IDS, PROVIDERS, type ChatMessage, type ProviderId } from '@/lib/providers';
+import {
+  LOCAL_ENABLED,
+  PROVIDER_IDS,
+  PROVIDERS,
+  type ChatMessage,
+  type ProviderId,
+} from '@/lib/providers';
 import type { Settings } from '@/lib/settings';
 import { attachmentsFrom } from '@/lib/image';
 import { useDictation } from '@/lib/useDictation';
@@ -526,6 +532,9 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
           >
             <MicIcon />
           </button>
+          {/* Hidden entirely in a build without the on-device provider — a
+              switch that can only fail is worse than no switch. */}
+          {LOCAL_ENABLED && (
           <button
             className={`btn${isLocal ? ' is-active' : ''}`}
             onClick={toggleLocal}
@@ -537,6 +546,7 @@ export default function Chat({ settings, update, focusToken, dictateToken, notif
           >
             <ChipIcon />
           </button>
+          )}
           <button
             className={`btn${settings.webSearch && !isLocal ? ' is-active' : ''}`}
             onClick={() => update({ webSearch: !settings.webSearch })}

@@ -17,7 +17,9 @@
     "dist": "npm run icons && npm run build && electron-builder",
     "dist:mac": "npm run icons && npm run build && electron-builder --mac",
     "dist:win": "npm run icons && npm run build && electron-builder --win",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:share": "NEXT_PUBLIC_ENABLE_LOCAL=0 next build && node scripts/prepare-server.mjs",
+    "dist:share": "npm run icons && npm run build:share && electron-builder --mac -c.directories.output=release-share"
   },
   "//": "next/react live in devDependencies on purpose: the packaged app runs the standalone server, which ships its own pruned node_modules as an extra resource. Listing them as runtime dependencies would make electron-builder bundle a second ~45MB copy into the asar.",
   "devDependencies": {

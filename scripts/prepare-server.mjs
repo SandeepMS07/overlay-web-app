@@ -53,4 +53,35 @@ for (const required of ['server.js', 'node_modules/next/package.json', '.next/st
   }
 }
 
+/**
+ * Strip the build machine's absolute path out of the payload.
+ *
+ * Next records where it was built — `repoRoot`, `outputFileTracingRoot` and
+ * friends — and on a Mac that path contains the account name. Harmless on your
+ * own machine; it travels with every copy you hand to somebody else.
+ *
+ * These are build-time tracing hints, not runtime lookups, so a placeholder is
+ * as good as the real thing. Only text files are touched, and only exact
+ * matches of the root.
+ */
+function scrubBuildPaths(dir) {
+  let scrubbed = 0;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      scrubbed += scrubBuildPaths(full);
+      continue;
+    }
+    if (!/\.(json|js|mjs|cjs)$/.test(entry.name)) continue;
+    const before = fs.readFileSync(full, 'utf8');
+    if (!before.includes(root)) continue;
+    fs.writeFileSync(full, before.split(root).join('/app'), 'utf8');
+    scrubbed++;
+  }
+  return scrubbed;
+}
+
+const scrubbed = scrubBuildPaths(target);
+
 console.log(`Prepared standalone server at ${path.relative(root, target)}`);
+if (scrubbed) console.log(`Scrubbed the build path from ${scrubbed} file(s).`);

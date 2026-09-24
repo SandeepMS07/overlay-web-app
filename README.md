@@ -511,6 +511,58 @@ State lives in Electron's `userData` directory, passed to the server as
 - macOS — `~/Library/Application Support/Overlay Player/`
 - Windows — `%APPDATA%\Overlay Player\`
 
+## Giving it to somebody else
+
+`npm run dist:share` builds into `release-share/` with the on-device provider
+left out, and `NEXT_PUBLIC_ENABLE_LOCAL=0` is what removes it.
+
+That flag gates the server as well as the UI, because both the chat and the
+settings route validate through `isProviderId` — asking for the local provider
+by hand-writing a request gets `Pick a provider first.` rather than a timeout
+against a daemon that is not there.
+
+Leaving it in would not have been neutral. It needs Ollama installed and an
+8 GB model pulled, so on anyone else's machine it can only ever answer "No
+local model server on 127.0.0.1:11434" — which reads as a broken app rather
+than a missing prerequisite.
+
+Two things degrade for a recipient, and neither breaks:
+
+- **Retrieval.** Embeddings also came from Ollama, so without it `embed()`
+  returns null and whole documents are sent instead of retrieved passages.
+  Relevance is lost, function is not.
+- **Dictation.** With no local whisper server it falls back to OpenAI, so that
+  one needs a ChatGPT key specifically.
+
+They will need their own API key for Claude, ChatGPT or Gemini. Gemini's free
+tier costs nothing.
+
+### What travels with the build
+
+`.data` is excluded from the payload, so no keys, no documents and no settings
+ship inside the app — a fresh install starts empty. Verified against the
+packaged server: `/api/docs` returns `{"docs":[]}` and `/api/keys` returns
+`{"configured":[]}`.
+
+`prepare-server.mjs` also replaces the build machine's absolute path with
+`/app`. Next records where it was built — `repoRoot`, `outputFileTracingRoot` —
+and on a Mac that path contains the account name, which would otherwise travel
+with every copy handed out. They are build-time tracing hints rather than
+runtime lookups, so a placeholder is as good as the real thing.
+
+### Unsigned builds and Gatekeeper
+
+`identity: null` means these are unsigned, and macOS refuses to open an
+unsigned app from the internet. The recipient right-clicks the app and chooses
+**Open**, once; or clears the quarantine flag:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Overlay Player.app"
+```
+
+Signing properly needs an Apple Developer account. Remove `identity: null` and
+set `CSC_LINK` / `CSC_KEY_PASSWORD` to ship signed and notarised.
+
 ## Building installers
 
 ```bash

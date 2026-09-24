@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { isProviderId } from '@/lib/providers';
 import { DEFAULT_SETTINGS, type Settings } from '@/lib/settings';
 
 /**
@@ -42,7 +43,15 @@ export async function getSettings(): Promise<Settings> {
     if (key in stored) (known as Record<string, unknown>)[key] = stored[key];
   }
 
-  return { ...DEFAULT_SETTINGS, ...known };
+  const settings = { ...DEFAULT_SETTINGS, ...known };
+
+  // A settings file written by a build that had the local provider would
+  // otherwise leave this one pointing at a provider it cannot offer, with no
+  // way back to a working one from the UI.
+  if (!isProviderId(settings.provider)) settings.provider = settings.cloudProvider;
+  if (!isProviderId(settings.provider)) settings.provider = DEFAULT_SETTINGS.provider;
+
+  return settings;
 }
 
 export async function saveSettings(patch: Partial<Settings>): Promise<Settings> {
